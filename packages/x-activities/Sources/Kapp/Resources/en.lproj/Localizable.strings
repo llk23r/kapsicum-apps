@@ -1,0 +1,9 @@
+"kapsicum.runtime.error.unavailable" = "Kapsicum access is unavailable.";
+"kapsicum.runtime.error.invalid_response" = "Kapsicum returned an invalid response.";
+"kapsicum.runtime.error.timed_out" = "Kapsicum did not respond in time.";
+"kapsicum.runtime.error.request_too_large" = "The request is too large.";
+"kapsicum.runtime.error.request_denied" = "Kapsicum denied the request.";
+"kapsicum.builder.placeholder.waiting" = "Waiting for the builder agent";
+"kapsicum.ai.choose" = "Choose AI";
+"kapsicum.ai.engine_default" = "Agent default";
+"kapsicum.ai.unavailable" = "No AI agents available";

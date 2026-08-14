@@ -1,0 +1,10 @@
+{
+  "formatVersion" : 2,
+  "appID" : "dev.kapsicum.x-activities",
+  "displayName" : "X Activities",
+  "version" : "0.1.0",
+  "minimumKapsicumVersion" : "0.1.0",
+  "runtimeProtocolVersion" : 1,
+  "requestedReadCapabilityIDs" : [],
+  "usesAI" : false
+}

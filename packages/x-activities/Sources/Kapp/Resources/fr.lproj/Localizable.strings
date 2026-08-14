@@ -1,0 +1,9 @@
+"kapsicum.runtime.error.unavailable" = "L’accès à Kapsicum est indisponible.";
+"kapsicum.runtime.error.invalid_response" = "Kapsicum a renvoyé une réponse non valide.";
+"kapsicum.runtime.error.timed_out" = "Kapsicum n’a pas répondu à temps.";
+"kapsicum.runtime.error.request_too_large" = "La requête est trop volumineuse.";
+"kapsicum.runtime.error.request_denied" = "Kapsicum a refusé la requête.";
+"kapsicum.builder.placeholder.waiting" = "En attente de l’agent de création";
+"kapsicum.ai.choose" = "Choisir l’IA";
+"kapsicum.ai.engine_default" = "Valeur par défaut de l’agent";
+"kapsicum.ai.unavailable" = "Aucun agent IA disponible";
