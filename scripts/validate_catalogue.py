@@ -13,17 +13,27 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOGUE_PATH = ROOT / "catalogue.json"
+HOST_LOCALIZATION_RESOURCES = {
+    f"Sources/Kapp/Resources/{language}.lproj/Localizable.strings"
+    for language in ("en", "es", "fr")
+}
 
 
 def is_localized_resource(relative: str) -> bool:
     parts = PurePosixPath(relative).parts
-    return (
+    structurally_valid = (
         len(parts) == 5
         and parts[:3] == ("Sources", "Kapp", "Resources")
         and parts[3].endswith(".lproj")
         and len(parts[3]) > len(".lproj")
         and parts[4].endswith(".strings")
         and len(parts[4]) > len(".strings")
+    )
+    if not structurally_valid:
+        return False
+    return (
+        parts[4].casefold() != "localizable.strings"
+        or relative in HOST_LOCALIZATION_RESOURCES
     )
 
 

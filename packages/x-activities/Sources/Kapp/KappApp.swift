@@ -39,17 +39,29 @@ struct KappContent: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button { store.section = .search } label: { Label("Search", systemImage: "magnifyingglass") }
+                Button { store.section = .search } label: {
+                    Label(L10n.string("Search"), systemImage: "magnifyingglass")
+                }
                     .keyboardShortcut("f", modifiers: .command)
-                Button { Task { await store.synchronize() } } label: { Label("Import Now", systemImage: "arrow.triangle.2.circlepath") }
+                Button { Task { await store.synchronize() } } label: {
+                    Label(
+                        L10n.string("Import Now"),
+                        systemImage: "arrow.triangle.2.circlepath")
+                }
                     .disabled(store.importState.isImporting || !store.importState.canImport)
             }
         }
-        .confirmationDialog("Delete all local X Activity history?", isPresented: $deletePending) {
-            Button("Delete Local History", role: .destructive) { Task { await store.deleteLocalHistory() } }
-            Button("Cancel", role: .cancel) {}
+        .confirmationDialog(
+            L10n.string("Delete all local X Activity history?"),
+            isPresented: $deletePending
+        ) {
+            Button(L10n.string("Delete Local History"), role: .destructive) {
+                Task { await store.deleteLocalHistory() }
+            }
+            Button(L10n.string("Cancel"), role: .cancel) {}
         } message: {
-            Text("This removes the local database and cached screenshots. Kapsicum’s archive is not changed.")
+            Text(L10n.string(
+                "This removes the local database and cached screenshots. Kapsicum’s archive is not changed."))
         }
     }
 }
@@ -82,11 +94,11 @@ private struct Sidebar: View {
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("X ACTIVITY")
+                    Text(L10n.string("X ACTIVITY"))
                         .font(.system(.title3, design: .rounded, weight: .bold))
                         .foregroundStyle(.primary)
                         .tracking(1)
-                    Text("Local-first journal")
+                    Text(L10n.string("Local-first journal"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -97,7 +109,7 @@ private struct Sidebar: View {
                 CompactMonthCalendar(store: store)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             } header: {
-                Text("CALENDAR")
+                Text(L10n.string("CALENDAR"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
@@ -126,7 +138,7 @@ private struct Sidebar: View {
                     }
                     importStatus
                     Button(role: .destructive) { deletePending = true } label: {
-                        Label("Delete Local History", systemImage: "trash")
+                        Label(L10n.string("Delete Local History"), systemImage: "trash")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
@@ -135,7 +147,7 @@ private struct Sidebar: View {
                 }
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             } header: {
-                Text("LOCAL HISTORY")
+                Text(L10n.string("LOCAL HISTORY"))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
@@ -149,22 +161,28 @@ private struct Sidebar: View {
         switch store.importState {
         case .idle:
             Button { Task { await store.synchronize() } } label: {
-                Label("Import now", systemImage: "arrow.down.circle")
+                Label(L10n.string("Import now"), systemImage: "arrow.down.circle")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
         case .importing:
-            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Importing approved x.com captures…").font(.caption) }
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(L10n.string("Importing approved x.com captures…")).font(.caption)
+            }
         case .runtimeUnavailable:
-            Text("Open this Kapp from Kapsicum to import new activity. Your local history remains available.")
+            Text(L10n.string(
+                "Open this Kapp from Kapsicum to import new activity. Your local history remains available."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         case .failed(let message):
             VStack(alignment: .leading, spacing: 8) {
                 Text(message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-                Button("Retry Import") { Task { await store.synchronize() } }
+                Button(L10n.string("Retry Import")) {
+                    Task { await store.synchronize() }
+                }
             }
         }
     }
@@ -284,12 +302,12 @@ private struct ActivityContent: View {
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Picker("Source app", selection: $store.sourceAppFilter) {
-                Text("All Apps").tag(nil as String?)
+            Picker(L10n.string("Source app"), selection: $store.sourceAppFilter) {
+                Text(L10n.string("All Apps")).tag(nil as String?)
                 ForEach(store.sourceApps, id: \.self) { Text($0).tag(Optional($0)) }
             }.frame(width: 150)
-            Picker("Record type", selection: $store.typeFilter) {
-                Text("All Types").tag(nil as ActivityRecordType?)
+            Picker(L10n.string("Record type"), selection: $store.typeFilter) {
+                Text(L10n.string("All Types")).tag(nil as ActivityRecordType?)
                 ForEach(ActivityRecordType.allCases) { Text($0.displayName).tag(Optional($0)) }
             }.frame(width: 150)
         }.padding(.horizontal, 20).padding(.vertical, 14)
@@ -491,7 +509,7 @@ private struct ScreenshotBrowser: View {
 
     @ViewBuilder private func sourceLink(for record: ActivityRecord) -> some View {
         if let raw = record.pageURL, let url = URL(string: raw), ["http", "https"].contains(url.scheme ?? "") {
-            Link("Open Source", destination: url).font(.caption)
+            Link(L10n.string("Open Source"), destination: url).font(.caption)
         }
     }
 }
@@ -512,14 +530,18 @@ private struct ScreenshotBrowserViewer: View {
                     VStack(spacing: 8) {
                         Image(systemName: "photo.badge.exclamationmark")
                         Text(message).font(.caption).multilineTextAlignment(.center)
-                        Button("Retry") { store.loadSelectedBrowserImage() }
+                        Button(L10n.string("Retry")) {
+                            store.loadSelectedBrowserImage()
+                        }
                     }.foregroundStyle(.white).padding(14).background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 9))
                 case .loading, .none:
                     thumbnail(for: record)
                     ProgressView().tint(.white).padding(10).background(.black.opacity(0.6), in: Circle())
                 }
             } else {
-                ContentUnavailableView("No screenshot selected", systemImage: "photo")
+                ContentUnavailableView(
+                    L10n.string("No screenshot selected"),
+                    systemImage: "photo")
                     .foregroundStyle(.white)
             }
         }
@@ -665,7 +687,12 @@ private struct SearchResults: View {
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "magnifyingglass")
-                TextField("Search local snippets, sources, and links", text: $store.searchText).textFieldStyle(.plain)
+                TextField(
+                    L10n.string(
+                        "Search local snippets, sources, and links",
+                        fallback: "Search local snippets, sources, and links"),
+                    text: $store.searchText)
+                    .textFieldStyle(.plain)
                 if !store.searchText.isEmpty {
                     Button { store.searchText = "" } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -742,7 +769,7 @@ private struct ActivityRow: View {
         }.padding(11).background(store.selectedIDs.contains(record.id) ? Color.orange.opacity(0.07) : Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
             .overlay(RoundedRectangle(cornerRadius: 9).stroke(store.selectedIDs.contains(record.id) ? Color.orange.opacity(0.5) : Color(nsColor: .separatorColor).opacity(0.4)))
     }
-    @ViewBuilder private var sourceLink: some View { if let raw = record.pageURL, let url = URL(string: raw), ["http", "https"].contains(url.scheme ?? "") { Link("Open Source", destination: url).font(.caption) } }
+    @ViewBuilder private var sourceLink: some View { if let raw = record.pageURL, let url = URL(string: raw), ["http", "https"].contains(url.scheme ?? "") { Link(L10n.string("Open Source"), destination: url).font(.caption) } }
     private var color: Color { switch record.type { case .typedText: .orange; case .clipboard: .green; case .screenshot: .purple; case .note: .pink; case .link: .blue } }
 }
 
@@ -761,7 +788,7 @@ private struct ScreenshotCard: View {
                             fallback: "Inspect screenshot"))
                 case .failed(let message): failure(message) { store.retryThumbnail(for: record) }
                 case .loading, .none:
-                    VStack(spacing: 7) { ProgressView().controlSize(.small); Text("Loading local image…").font(.caption).foregroundStyle(.secondary) }
+                    VStack(spacing: 7) { ProgressView().controlSize(.small); Text(L10n.string("Loading local image…")).font(.caption).foregroundStyle(.secondary) }
                         .onAppear { store.requestThumbnail(for: record) }
                 }
             } else {
@@ -774,7 +801,7 @@ private struct ScreenshotCard: View {
         }.frame(maxWidth: .infinity, minHeight: 112, maxHeight: 170).background(Color.black.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
             .clipShape(RoundedRectangle(cornerRadius: 8)).overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator.opacity(0.45)))
     }
-    private func failure(_ message: String, retry: @escaping () -> Void) -> some View { VStack(spacing: 6) { Image(systemName: "photo.badge.exclamationmark").foregroundStyle(.orange); Text(message).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(2); Button("Retry", action: retry).controlSize(.small) }.padding(8) }
+    private func failure(_ message: String, retry: @escaping () -> Void) -> some View { VStack(spacing: 6) { Image(systemName: "photo.badge.exclamationmark").foregroundStyle(.orange); Text(message).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(2); Button(L10n.string("Retry"), action: retry).controlSize(.small) }.padding(8) }
 }
 
 private struct Inspector: View {
@@ -804,26 +831,26 @@ private struct ScreenshotInspector: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button { store.closeInspection() } label: { Label("Back", systemImage: "chevron.left") }
+                Button { store.closeInspection() } label: { Label(L10n.string("Back"), systemImage: "chevron.left") }
                 Spacer()
                 if !store.isSourceBrowserVisible {
                     Button { store.moveInspection(by: -1) } label: { Image(systemName: "chevron.up") }.disabled(!store.canMoveInspection(by: -1))
                     Button { store.moveInspection(by: 1) } label: { Image(systemName: "chevron.down") }.disabled(!store.canMoveInspection(by: 1))
                 }
-                Button { scale = 1 } label: { Label("Fit", systemImage: "arrow.down.right.and.arrow.up.left") }
+                Button { scale = 1 } label: { Label(L10n.string("Fit"), systemImage: "arrow.down.right.and.arrow.up.left") }
             }.padding(14)
             Divider()
             ZStack {
                 Color.black.opacity(0.84)
                 switch store.inspectorImage {
                 case .loaded(let image): Image(decorative: image, scale: 1).resizable().scaledToFit().scaleEffect(scale).gesture(MagnifyGesture().onChanged { scale = max(1, min(4, $0.magnification)) })
-                case .failed(let message): VStack(spacing: 8) { Image(systemName: "photo.badge.exclamationmark"); Text(message).font(.caption); Button("Retry") { store.inspect(record) } }.foregroundStyle(.white)
+                case .failed(let message): VStack(spacing: 8) { Image(systemName: "photo.badge.exclamationmark"); Text(message).font(.caption); Button(L10n.string("Retry")) { store.inspect(record) } }.foregroundStyle(.white)
                 case .loading, .none: ProgressView().tint(.white)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
             Divider()
             VStack(alignment: .leading, spacing: 8) {
-                Text("SOURCE").font(.system(size: 9, weight: .bold, design: .rounded)).tracking(0.7).foregroundStyle(.secondary)
+                Text(L10n.string("SOURCE")).font(.system(size: 9, weight: .bold, design: .rounded)).tracking(0.7).foregroundStyle(.secondary)
                 Label(record.sourceApp ?? L10n.string(
                     "source.unknown_app",
                     fallback: "Unknown app"), systemImage: "app")
@@ -833,7 +860,7 @@ private struct ScreenshotInspector: View {
             }.font(.caption).padding(14)
         }.background(Color(nsColor: .controlBackgroundColor).opacity(0.45)).onChange(of: record.id) { _, _ in scale = 1 }
     }
-    @ViewBuilder private var sourceLink: some View { if let raw = record.pageURL, let url = URL(string: raw), ["http", "https"].contains(url.scheme ?? "") { Link("Open Source", destination: url) } }
+    @ViewBuilder private var sourceLink: some View { if let raw = record.pageURL, let url = URL(string: raw), ["http", "https"].contains(url.scheme ?? "") { Link(L10n.string("Open Source"), destination: url) } }
 }
 
 private struct CitedSourcesBrowser: View {
@@ -846,7 +873,7 @@ private struct CitedSourcesBrowser: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Button { store.closeSourceBrowser() } label: {
-                    Label("Back to answer", systemImage: "chevron.left")
+                    Label(L10n.string("Back to answer"), systemImage: "chevron.left")
                 }
                 .buttonStyle(.bordered)
                 Spacer()
@@ -873,7 +900,7 @@ private struct CitedSourcesBrowser: View {
             } else {
                 VStack(spacing: 10) {
                     ProgressView()
-                    Text("Opening cited sources…").font(.callout).foregroundStyle(.secondary)
+                    Text(L10n.string("Opening cited sources…")).font(.callout).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -945,14 +972,16 @@ private struct CitedSourceRow: View {
 
                 if let url = sourceURL(record) {
                     Link(destination: url) {
-                        Label("Open Original", systemImage: "arrow.up.right.square")
+                        Label(
+                            L10n.string("Open Original"),
+                            systemImage: "arrow.up.right.square")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
             } else {
                 Label(
-                    "This local source is no longer available.",
+                    L10n.string("This local source is no longer available."),
                     systemImage: "doc.questionmark")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -990,9 +1019,9 @@ private struct RecapChat: View {
             }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
             Divider()
             if store.chat.isEmpty {
-                VStack(spacing: 11) { Image(systemName: "quote.bubble").font(.system(size: 28)).foregroundStyle(.orange); Text("Ask local history").font(.headline); Text("Answers use the visible period or selected sources and cite supplied captures.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center) }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 11) { Image(systemName: "quote.bubble").font(.system(size: 28)).foregroundStyle(.orange); Text(L10n.string("Ask local history")).font(.headline); Text(L10n.string("Answers use the visible period or selected sources and cite supplied captures.")).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center) }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView { VStack(spacing: 10) { ForEach(store.chat) { ChatBubble(message: $0, store: store) }; if store.isAsking { HStack { ProgressView().controlSize(.small); Text("Reading local sources…").font(.caption); Spacer() }.padding(8) } }.padding(12) }
+                ScrollView { VStack(spacing: 10) { ForEach(store.chat) { ChatBubble(message: $0, store: store) }; if store.isAsking { HStack { ProgressView().controlSize(.small); Text(L10n.string("Reading local sources…")).font(.caption); Spacer() }.padding(8) } }.padding(12) }
             }
             if let error = store.aiError { Text(error).font(.caption).foregroundStyle(.red).padding(10).frame(maxWidth: .infinity, alignment: .leading).background(.red.opacity(0.06)) }
             Divider()
@@ -1001,7 +1030,7 @@ private struct RecapChat: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color(nsColor: .textBackgroundColor))
                     if question.isEmpty {
-                        Text("Ask about this local period…")
+                        Text(L10n.string("Ask about this local period…"))
                             .font(.body)
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 10)
@@ -1018,7 +1047,7 @@ private struct RecapChat: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(.separator.opacity(0.75))
                 }
-                HStack { Text("Verify cited captures.").font(.caption2).foregroundStyle(.tertiary); Spacer(); if store.isAsking { Button("Cancel") { Task { await store.cancelAI() } } } else { Button("Ask") { submit(question) }.buttonStyle(.borderedProminent).tint(.orange).disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).keyboardShortcut(.return, modifiers: .command) } }
+                HStack { Text(L10n.string("Verify cited captures.")).font(.caption2).foregroundStyle(.tertiary); Spacer(); if store.isAsking { Button(L10n.string("Cancel")) { Task { await store.cancelAI() } } } else { Button(L10n.string("Ask")) { submit(question) }.buttonStyle(.borderedProminent).tint(.orange).disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).keyboardShortcut(.return, modifiers: .command) } }
             }.padding(12)
         }.background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
     }
@@ -1031,11 +1060,11 @@ private struct ChatHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
-                Text("RECAP + AI")
+                Text(L10n.string("RECAP + AI"))
                     .font(.system(.headline, design: .rounded, weight: .bold))
                     .tracking(0.7)
                 Spacer()
-                Menu("History") {
+                Menu(L10n.string("History")) {
                     ForEach(store.chatThreads) { thread in
                         Button(historyTitle(thread)) {
                             Task { await store.openChatThread(thread.id) }
@@ -1047,7 +1076,7 @@ private struct ChatHeader: View {
                     "help.open_saved_chat",
                     fallback: "Open a saved chat"))
                 Button { store.beginNewChat() } label: {
-                    Label("New Chat", systemImage: "plus.bubble")
+                    Label(L10n.string("New Chat"), systemImage: "plus.bubble")
                 }
                     .disabled(store.isAsking)
                     .help(L10n.string(
@@ -1060,7 +1089,7 @@ private struct ChatHeader: View {
 
     private func historyTitle(_ thread: ChatThread) -> String {
         let marker = store.activeThread?.id == thread.id ? "✓ " : ""
-        return "\(marker)\(thread.title) — \(thread.scope.label)"
+        return "\(marker)\(thread.title) — \(store.localizedChatScopeLabel(for: thread.scope))"
     }
 
 }

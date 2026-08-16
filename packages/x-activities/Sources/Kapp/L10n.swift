@@ -2,7 +2,7 @@ import Foundation
 
 enum L10n {
     static func string(_ key: String, fallback: String? = nil) -> String {
-        Bundle.module.localizedString(
+        KapsicumRuntimeLocalization.bundle.localizedString(
             forKey: key,
             value: fallback ?? key,
             table: "XActivity")

@@ -387,12 +387,47 @@ final class ActivityStore: ObservableObject {
             return L10n.format(
                 "chat.scope.fixed",
                 fallback: "Fixed scope: %@",
-                activeThread.scope.label)
+                localizedChatScopeLabel(for: activeThread.scope))
         }
         return L10n.format(
             "chat.scope.next",
             fallback: "Next chat: %@",
-            currentChatScope.label)
+            localizedChatScopeLabel(for: currentChatScope))
+    }
+
+    func localizedChatScopeLabel(for scope: ChatScope) -> String {
+        if scope.kind == .selected {
+            return L10n.format(
+                scope.sourceIDs.count == 1
+                    ? "chat.scope.selected.one"
+                    : "chat.scope.selected.many",
+                fallback: scope.sourceIDs.count == 1
+                    ? "%lld selected capture"
+                    : "%lld selected captures",
+                Int64(scope.sourceIDs.count))
+        }
+        guard let start = scope.start else { return scope.label }
+        let key = scope.label.hasPrefix("chat.scope.")
+            ? scope.label
+            : inferredScopeLabelKey(for: scope)
+        switch key {
+        case "chat.scope.day":
+            return start.formatted(
+                .dateTime.weekday(.wide).month(.abbreviated).day())
+        case "chat.scope.week":
+            return L10n.format(
+                "chat.scope.week",
+                fallback: "Week of %@",
+                start.formatted(date: .abbreviated, time: .omitted))
+        case "chat.scope.month":
+            return start.formatted(.dateTime.month(.wide).year())
+        case "chat.scope.all_history":
+            return L10n.string(
+                "chat.scope.all_history",
+                fallback: "All accumulated local history")
+        default:
+            return scope.label
+        }
     }
 
     var recap: String {
@@ -515,35 +550,48 @@ final class ActivityStore: ObservableObject {
     private var currentChatScope: ChatScope {
         if !selectedIDs.isEmpty {
             let ids = selectedIDs.sorted()
-            let label = L10n.format(
-                ids.count == 1 ? "chat.scope.selected.one" : "chat.scope.selected.many",
-                fallback: ids.count == 1 ? "%lld selected capture" : "%lld selected captures",
-                Int64(ids.count))
             return ChatScope(
                 kind: .selected,
                 start: nil,
                 end: nil,
                 sourceIDs: ids,
-                label: label)
+                label: "chat.scope.selected")
         }
         let range = visibleRange
         let label: String
         switch section {
         case .today:
-            label = selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+            label = "chat.scope.day"
         case .week:
-            label = L10n.format(
-                "chat.scope.week",
-                fallback: "Week of %@",
-                range.start.formatted(date: .abbreviated, time: .omitted))
+            label = "chat.scope.week"
         case .month:
-            label = selectedDate.formatted(.dateTime.month(.wide).year())
+            label = "chat.scope.month"
         case .search:
-            label = L10n.string(
-                "chat.scope.all_history",
-                fallback: "All accumulated local history")
+            label = "chat.scope.all_history"
         }
         return ChatScope(kind: .range, start: range.start, end: range.end, sourceIDs: [], label: label)
+    }
+
+    private func inferredScopeLabelKey(for scope: ChatScope) -> String {
+        if [
+            "All accumulated local history",
+            "Todo el historial local acumulado",
+            "Tout l’historique local accumulé",
+        ].contains(scope.label) {
+            return "chat.scope.all_history"
+        }
+        guard let start = scope.start, let end = scope.end else { return scope.label }
+        let duration = end.timeIntervalSince(start)
+        switch duration {
+        case 20 * 3_600 ... 28 * 3_600:
+            return "chat.scope.day"
+        case 6.5 * 86_400 ... 7.5 * 86_400:
+            return "chat.scope.week"
+        case 27 * 86_400 ... 32 * 86_400:
+            return "chat.scope.month"
+        default:
+            return scope.label
+        }
     }
 
     private func sources(for scope: ChatScope) async throws -> [ActivityRecord] {
