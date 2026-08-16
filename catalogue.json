@@ -6,6 +6,7 @@
       "name" : "xactivity",
       "version" : "0.2.3",
       "description" : "Turn approved x.com captures into a private local activity journal with search, screenshots, recaps, and optional AI.",
+      "descriptionLocalizationKey" : "dashboard.kapps.discover.x_activities.description",
       "usesAI" : true,
       "requestedReadCapabilityIDs" : [
         "archive.getScreenshot",
