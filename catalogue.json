@@ -3,15 +3,19 @@
   "entries" : [
     {
       "appID" : "dev.kapsicum.x-activities",
-      "name" : "X Activities",
-      "version" : "0.1.0",
-      "description" : "Open X notifications, bookmarks, and messages from one small native launcher.",
-      "usesAI" : false,
-      "requestedReadCapabilityIDs" : [],
-      "sourceZIPLocation" : "https://raw.githubusercontent.com/llk23r/kapsicum-apps/main/releases/XActivities-0.1.0.zip",
-      "sourceDigest" : "79752abbd8f02267b689d5673b2c9048bcc8f3ef2d6baa103581ae199eda776a",
-      "zipSHA256" : "2dd4cfd6431fe4bfd87598f0cb2156efdd7b76df32d8eb93a1791412c77adda9",
-      "includedArchiveName" : "XActivities-0.1.0.zip"
+      "name" : "xactivity",
+      "version" : "0.2.0",
+      "description" : "Turn approved x.com captures into a private local activity journal with search, screenshots, recaps, and optional AI.",
+      "usesAI" : true,
+      "requestedReadCapabilityIDs" : [
+        "archive.getScreenshot",
+        "archive.searchAudioSnippets",
+        "archive.searchTextSnippets"
+      ],
+      "sourceZIPLocation" : "https://raw.githubusercontent.com/llk23r/kapsicum-apps/main/releases/xactivity-0.2.0.zip",
+      "sourceDigest" : "44c81e8de4744bd51788b1658f43cb22f468a192bf97164b61512442eaa20e9a",
+      "zipSHA256" : "f699c0fa224f5bd4cfe44730145af470a0f787d5e5f6ac7ecfd9472ef265165d",
+      "includedArchiveName" : "xactivity-0.2.0.zip"
     }
   ]
 }

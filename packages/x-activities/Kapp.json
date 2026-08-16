@@ -1,10 +1,14 @@
 {
-  "formatVersion" : 2,
   "appID" : "dev.kapsicum.x-activities",
-  "displayName" : "X Activities",
-  "version" : "0.1.0",
+  "displayName" : "xactivity",
+  "formatVersion" : 2,
   "minimumKapsicumVersion" : "0.1.0",
+  "requestedReadCapabilityIDs" : [
+    "archive.getScreenshot",
+    "archive.searchAudioSnippets",
+    "archive.searchTextSnippets"
+  ],
   "runtimeProtocolVersion" : 1,
-  "requestedReadCapabilityIDs" : [],
-  "usesAI" : false
+  "usesAI" : true,
+  "version" : "0.2.0"
 }
