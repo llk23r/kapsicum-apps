@@ -128,26 +128,42 @@ final class ActivityStore: ObservableObject {
         await cancelAI()
         do {
             try await database.deleteAllHistory()
-            try await media.deleteAllMedia()
-            thumbnails.removeAll(); thumbnailOrder.removeAll(); pendingThumbnails.removeAll()
-            inspectedRecord = nil; inspectorImage = nil; selectedIDs.removeAll()
-            browserImageTask?.cancel(); browserImageTask = nil
-            browserScreenshotID = nil; browserImage = nil
-            sourceBrowserToken = UUID(); sourceBrowserRequest = nil; sourceBrowser = .hidden
-            chatLoadToken = UUID(); chat.removeAll(); chatThreads.removeAll(); activeThread = nil
-            aiError = nil; isAsking = false; activeRunID = nil; activeRunThreadID = nil
-            if importState.canImport { importState = .idle }
-            await reloadLocal()
         } catch {
             importState = .failed(L10n.format(
                 "error.history.delete",
                 fallback: "Local history could not be deleted: %@",
                 Self.message(error)))
+            return
         }
+        clearDeletedLocalHistoryProjection()
+        do {
+            try await media.deleteAllMedia()
+        } catch {
+            await reloadLocal()
+            importState = .failed(L10n.format(
+                "error.history.media_cleanup",
+                fallback: "Local history was deleted, but cached screenshots could not be removed: %@",
+                Self.message(error)))
+            return
+        }
+        await reloadLocal()
     }
 
     var canDeleteLocalHistory: Bool {
         !importState.isImporting && !isDeletingHistory
+    }
+
+    private func clearDeletedLocalHistoryProjection() {
+        records.removeAll(); sourceApps.removeAll(); density.removeAll()
+        history = .empty; loadState = .ready
+        thumbnails.removeAll(); thumbnailOrder.removeAll(); pendingThumbnails.removeAll()
+        inspectedRecord = nil; inspectorImage = nil; selectedIDs.removeAll()
+        browserImageTask?.cancel(); browserImageTask = nil
+        browserScreenshotID = nil; browserImage = nil
+        sourceBrowserToken = UUID(); sourceBrowserRequest = nil; sourceBrowser = .hidden
+        chatLoadToken = UUID(); chat.removeAll(); chatThreads.removeAll(); activeThread = nil
+        aiError = nil; isAsking = false; activeRunID = nil; activeRunThreadID = nil
+        if importState.canImport { importState = .idle }
     }
 
     func selectDay(_ day: Date) {
@@ -328,6 +344,7 @@ final class ActivityStore: ObservableObject {
             let userMessage = ChatMessage(role: .user, text: trimmed, sourceIDs: sourceIDs)
             if isNewThread {
                 try await database.createChatThread(thread, firstMessage: userMessage)
+                guard aiRequestToken == requestToken else { return }
                 activeThread = thread
             } else {
                 try await database.appendChatMessage(userMessage, threadID: thread.id)

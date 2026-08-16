@@ -113,6 +113,7 @@
 "recap.empty" = "Aucune activité x.com locale dans cette vue.";
 "recap.summary" = "%lld %@ dans %lld %@, dont %lld %@ et %lld %@.";
 "error.history.delete" = "Impossible de supprimer l’historique local : %@";
+"error.history.media_cleanup" = "L’historique local a été supprimé, mais les captures d’écran en cache n’ont pas pu être supprimées : %@";
 "error.thumbnail.queue_full" = "La file des miniatures est pleine. Réessayez lorsque moins d’images sont visibles.";
 "error.sources.open" = "Impossible d’ouvrir les sources : %@";
 "error.chat.no_history" = "Aucun historique local dans le périmètre fixe de cette discussion.";

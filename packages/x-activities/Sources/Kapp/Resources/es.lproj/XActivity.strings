@@ -113,6 +113,7 @@
 "recap.empty" = "No hay actividad local de x.com en esta vista.";
 "recap.summary" = "%lld %@ en %lld %@, incluidas %lld %@ y %lld %@.";
 "error.history.delete" = "No se pudo eliminar el historial local: %@";
+"error.history.media_cleanup" = "El historial local se eliminó, pero no se pudieron borrar las capturas en caché: %@";
 "error.thumbnail.queue_full" = "La cola de miniaturas está llena. Reinténtalo cuando haya menos imágenes visibles.";
 "error.sources.open" = "No se pudieron abrir las fuentes: %@";
 "error.chat.no_history" = "No hay historial local en el ámbito fijo de este chat.";

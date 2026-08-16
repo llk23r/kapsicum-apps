@@ -113,6 +113,7 @@
 "recap.empty" = "No local x.com activity in this view.";
 "recap.summary" = "%lld %@ across %lld %@, including %lld %@ and %lld %@.";
 "error.history.delete" = "Local history could not be deleted: %@";
+"error.history.media_cleanup" = "Local history was deleted, but cached screenshots could not be removed: %@";
 "error.thumbnail.queue_full" = "Thumbnail queue is full. Retry when fewer images are visible.";
 "error.sources.open" = "Sources could not be opened: %@";
 "error.chat.no_history" = "There is no local history in this chat’s fixed scope.";
