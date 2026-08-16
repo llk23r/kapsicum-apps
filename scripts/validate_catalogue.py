@@ -87,6 +87,8 @@ def zip_files(archive: Path) -> dict[str, bytes]:
             mode = member.external_attr >> 16
             if stat.S_ISLNK(mode):
                 fail(f"symbolic link in ZIP: {member.filename}")
+            if not member.is_dir() and not stat.S_ISREG(mode):
+                fail(f"non-regular ZIP member: {member.filename}")
             if member.is_dir():
                 continue
             if member.filename in files:
