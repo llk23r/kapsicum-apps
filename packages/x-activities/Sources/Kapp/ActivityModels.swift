@@ -136,11 +136,7 @@ struct ActivitySubjectScope: Sendable {
 }
 
 enum ActivityRecordType: String, CaseIterable, Identifiable, Hashable, Sendable {
-    case typedText = "Text"
-    case clipboard = "Clipboard"
-    case screenshot = "Screenshots"
-    case note = "Notes"
-    case link = "Links"
+    case typedText, clipboard, screenshot, note, link
 
     var id: Self { self }
     init?(contentKind: String) {
@@ -160,6 +156,15 @@ enum ActivityRecordType: String, CaseIterable, Identifiable, Hashable, Sendable 
         case .screenshot: "screenshots"
         case .note: "notes"
         case .link: "links"
+        }
+    }
+    var displayName: String {
+        switch self {
+        case .typedText: L10n.string("activity.type.text", fallback: "Text")
+        case .clipboard: L10n.string("activity.type.clipboard", fallback: "Clipboard")
+        case .screenshot: L10n.string("activity.type.screenshots", fallback: "Screenshots")
+        case .note: L10n.string("activity.type.notes", fallback: "Notes")
+        case .link: L10n.string("activity.type.links", fallback: "Links")
         }
     }
     var systemImage: String {
@@ -236,8 +241,16 @@ struct StoredScreenshot: Codable, Sendable {
 }
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case today = "Today", week = "This Week", month = "Month", search = "Search"
+    case today, week, month, search
     var id: Self { self }
+    var displayName: String {
+        switch self {
+        case .today: L10n.string("section.today", fallback: "Today")
+        case .week: L10n.string("section.week", fallback: "This Week")
+        case .month: L10n.string("section.month", fallback: "Month")
+        case .search: L10n.string("section.search", fallback: "Search")
+        }
+    }
     var systemImage: String {
         switch self {
         case .today: "sun.max"

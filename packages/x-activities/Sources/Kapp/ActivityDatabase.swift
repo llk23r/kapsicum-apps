@@ -361,7 +361,11 @@ actor ActivityDatabase {
         let url = root.appendingPathComponent("xactivity.sqlite")
         var handle: OpaquePointer?
         guard sqlite3_open_v2(url.path, &handle, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
-              let handle else { throw DatabaseError.message("Unable to open local history.") }
+              let handle else {
+            throw DatabaseError.message(L10n.string(
+                "error.database.open",
+                fallback: "Unable to open local history."))
+        }
         connection = handle; databaseURL = url
         sqlite3_busy_timeout(handle, 5_000)
         try execute("PRAGMA foreign_keys=ON")
@@ -476,7 +480,11 @@ actor ActivityDatabase {
 
     private func encodeIDs(_ ids: [String]) throws -> String {
         let data = try JSONEncoder().encode(Array(ids.prefix(24)))
-        guard let value = String(data: data, encoding: .utf8) else { throw DatabaseError.message("Unable to save chat sources.") }
+        guard let value = String(data: data, encoding: .utf8) else {
+            throw DatabaseError.message(L10n.string(
+                "error.database.save_chat_sources",
+                fallback: "Unable to save chat sources."))
+        }
         return value
     }
 
@@ -546,7 +554,11 @@ actor ActivityDatabase {
         guard sqlite3_column_type(statement, index) != SQLITE_NULL, let pointer = sqlite3_column_text(statement, index) else { return nil }
         return String(cString: pointer)
     }
-    private func lastError() -> DatabaseError { DatabaseError.message(connection.map { String(cString: sqlite3_errmsg($0)) } ?? "Local history error.") }
+    private func lastError() -> DatabaseError {
+        DatabaseError.message(L10n.string(
+            "error.database.generic",
+            fallback: "Local history error."))
+    }
     private func databaseDiskBytes() throws -> Int64 {
         guard let databaseURL else { return 0 }
         return [databaseURL, URL(fileURLWithPath: databaseURL.path + "-wal"), URL(fileURLWithPath: databaseURL.path + "-shm")].reduce(0) { total, url in
@@ -558,5 +570,9 @@ actor ActivityDatabase {
 
 enum DatabaseError: LocalizedError {
     case message(String)
-    var errorDescription: String? { if case .message(let message) = self { message } else { "Local history error." } }
+    var errorDescription: String? {
+        switch self {
+        case .message(let message): message
+        }
+    }
 }

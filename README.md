@@ -2,7 +2,7 @@
 
 This repository is the public, static source catalogue for Kapps. A Kapp is reviewed and built from source on the recipient's Mac; this repository does not distribute executable binaries, grant access, or certify publishers.
 
-The first Included Kapp is [xactivity](packages/x-activities), a private local journal built from approved x.com captures. Its checked-in portable source ZIP is [xactivity-0.2.0.zip](releases/xactivity-0.2.0.zip), and `catalogue.json` pins both the ZIP SHA-256 and Kapsicum's canonical source digest.
+The first Included Kapp is [xactivity](packages/x-activities), a private local journal built from approved x.com captures. Its checked-in portable source ZIP is [xactivity-0.2.1.zip](releases/xactivity-0.2.1.zip), and `catalogue.json` pins both the ZIP SHA-256 and Kapsicum's canonical source digest.
 
 ## One portable source contract
 
@@ -18,7 +18,7 @@ Source can itself contain private text. Inspect every file before sharing it.
 
 ## Discover, install, customize, and share
 
-Kapsicum ships a pinned bundled copy of the catalogue and xactivity ZIP so Included discovery works offline. Selecting **Review & Install** uses the same archive importer, access review, and local build path as any portable source ZIP. xactivity requests text, audio, and screenshot retrieval plus optional AI; those are declarations only, and each installation receives access only after the user reviews and grants it locally.
+Kapsicum ships a pinned bundled copy of the catalogue and xactivity ZIP so Included discovery works offline. Selecting **Review & Install** uses the same archive importer, access review, and local build path as any portable source ZIP. xactivity requests text and screenshot retrieval plus optional AI; those are declarations only, and each installation receives access only after the user reviews and grants it locally.
 
 For direct sharing, send an exported source ZIP. A recipient opens it in Kapsicum and performs the same review and local build. **Customize a Copy** creates an isolated local project: it does not copy data, grants, credentials, conversations, history, or builds. Before publishing that copy as a distinct Kapp, keep the new `appID` Kapsicum assigned (or choose another globally distinct package identity) so it cannot collide with the original.
 

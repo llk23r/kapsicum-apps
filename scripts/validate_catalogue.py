@@ -13,11 +13,18 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOGUE_PATH = ROOT / "catalogue.json"
-LOCALIZED_RESOURCES = {
-    "Sources/Kapp/Resources/en.lproj/Localizable.strings",
-    "Sources/Kapp/Resources/es.lproj/Localizable.strings",
-    "Sources/Kapp/Resources/fr.lproj/Localizable.strings",
-}
+
+
+def is_localized_resource(relative: str) -> bool:
+    parts = PurePosixPath(relative).parts
+    return (
+        len(parts) == 5
+        and parts[:3] == ("Sources", "Kapp", "Resources")
+        and parts[3].endswith(".lproj")
+        and len(parts[3]) > len(".lproj")
+        and parts[4].endswith(".strings")
+        and len(parts[4]) > len(".strings")
+    )
 
 
 def fail(message: str) -> None:
@@ -38,7 +45,7 @@ def portable_files(package: Path) -> dict[str, bytes]:
             fail(f"non-regular source member: {package.name}/{relative}")
         allowed = relative in {"Package.swift", "Kapp.json"} or (
             relative.startswith("Sources/")
-            and (relative.endswith(".swift") or relative in LOCALIZED_RESOURCES)
+            and (relative.endswith(".swift") or is_localized_resource(relative))
         )
         if not allowed or any(part.startswith(".") for part in PurePosixPath(relative).parts):
             fail(f"unsupported portable source member: {package.name}/{relative}")

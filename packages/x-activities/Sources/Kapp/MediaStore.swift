@@ -101,8 +101,14 @@ enum MediaError: LocalizedError {
     case invalidData, invalidPath
     var errorDescription: String? {
         switch self {
-        case .invalidData: "The locally stored screenshot could not be read."
-        case .invalidPath: "The local media path is invalid."
+        case .invalidData:
+            L10n.string(
+                "error.media.invalid_data",
+                fallback: "The locally stored screenshot could not be read.")
+        case .invalidPath:
+            L10n.string(
+                "error.media.invalid_path",
+                fallback: "The local media path is invalid.")
         }
     }
 }

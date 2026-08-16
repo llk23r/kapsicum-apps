@@ -69,7 +69,7 @@ private struct Sidebar: View {
                         HStack(spacing: 8) {
                             Image(systemName: section.systemImage)
                                 .frame(width: 16)
-                            Text(section.rawValue)
+                            Text(section.displayName)
                         }
                             .frame(minHeight: 32)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,7 +108,12 @@ private struct Sidebar: View {
                     HistoryRow(label: "Records", value: store.history.count.formatted())
                     HistoryRow(label: "Coverage", value: coverageText)
                     HistoryRow(label: "Disk", value: ByteCountFormatter.string(fromByteCount: store.history.diskBytes, countStyle: .file))
-                    HistoryRow(label: "Last import", value: store.history.lastSuccessfulImport?.formatted(date: .omitted, time: .shortened) ?? "Never")
+                    HistoryRow(
+                        label: "Last import",
+                        value: store.history.lastSuccessfulImport?.formatted(
+                            date: .omitted,
+                            time: .shortened)
+                            ?? L10n.string("history.never", fallback: "Never"))
                     if let gap = store.history.gapMessage {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -165,7 +170,9 @@ private struct Sidebar: View {
     }
 
     private var coverageText: String {
-        guard let earliest = store.history.earliest, let latest = store.history.latest else { return "Empty" }
+        guard let earliest = store.history.earliest, let latest = store.history.latest else {
+            return L10n.string("history.empty", fallback: "Empty")
+        }
         return "\(earliest.formatted(date: .abbreviated, time: .omitted))–\(latest.formatted(date: .abbreviated, time: .omitted))"
     }
 }
@@ -174,7 +181,7 @@ private struct HistoryRow: View {
     let label: String, value: String
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label)
+            Text(L10n.string(label, fallback: label))
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
             Text(value)
@@ -283,7 +290,7 @@ private struct ActivityContent: View {
             }.frame(width: 150)
             Picker("Record type", selection: $store.typeFilter) {
                 Text("All Types").tag(nil as ActivityRecordType?)
-                ForEach(ActivityRecordType.allCases) { Text($0.rawValue).tag(Optional($0)) }
+                ForEach(ActivityRecordType.allCases) { Text($0.displayName).tag(Optional($0)) }
             }.frame(width: 150)
         }.padding(.horizontal, 20).padding(.vertical, 14)
     }
@@ -300,14 +307,33 @@ private struct ActivityContent: View {
     private var title: String {
         switch store.section {
         case .today: store.selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day())
-        case .week: "This Week"
+        case .week: L10n.string("section.week", fallback: "This Week")
         case .month: store.selectedDate.formatted(.dateTime.month(.wide).year())
-        case .search: "Search Local History"
+        case .search: L10n.string("title.search_history", fallback: "Search Local History")
         }
     }
-    private var subtitle: String { "\(store.records.count) local x.com record\(store.records.count == 1 ? "" : "s")" }
-    private var emptyTitle: String { store.section == .search && !store.searchText.isEmpty ? "No local matches" : "No local activity here" }
-    private var emptyDetail: String { store.history.count == 0 ? "Import approved x.com captures to begin local history." : "This period has no records for the selected type." }
+    private var subtitle: String {
+        L10n.format(
+            store.records.count == 1 ? "records.local.one" : "records.local.many",
+            fallback: store.records.count == 1
+                ? "%lld local x.com record"
+                : "%lld local x.com records",
+            Int64(store.records.count))
+    }
+    private var emptyTitle: String {
+        store.section == .search && !store.searchText.isEmpty
+            ? L10n.string("empty.no_matches", fallback: "No local matches")
+            : L10n.string("empty.no_activity", fallback: "No local activity here")
+    }
+    private var emptyDetail: String {
+        store.history.count == 0
+            ? L10n.string(
+                "empty.import_prompt",
+                fallback: "Import approved x.com captures to begin local history.")
+            : L10n.string(
+                "empty.period",
+                fallback: "This period has no records for the selected type.")
+    }
 }
 
 private struct DayJournal: View {
@@ -378,7 +404,9 @@ private struct ScreenshotBrowser: View {
                     onEditingChanged: { editing in
                         if !editing { store.loadSelectedBrowserImage() }
                     })
-                    .accessibilityLabel("Screenshot position")
+                    .accessibilityLabel(L10n.string(
+                        "accessibility.screenshot_position",
+                        fallback: "Screenshot position"))
                     .accessibilityValue(positionText)
             }
         }
@@ -398,14 +426,22 @@ private struct ScreenshotBrowser: View {
         HStack(spacing: 10) {
             Button { move(by: -1) } label: { Image(systemName: "chevron.left") }
                 .disabled((selectedIndex ?? 0) <= 0)
-                .help("Previous screenshot")
+                .help(L10n.string(
+                    "help.previous_screenshot",
+                    fallback: "Previous screenshot"))
             Button { move(by: 1) } label: { Image(systemName: "chevron.right") }
                 .disabled((selectedIndex ?? 0) >= records.count - 1)
-                .help("Next screenshot")
+                .help(L10n.string(
+                    "help.next_screenshot",
+                    fallback: "Next screenshot"))
             Text(positionText).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             Spacer()
             if let record = selectedRecord {
-                Text(record.sourceApp ?? record.domain ?? "Unknown source").font(.caption).foregroundStyle(.secondary)
+                Text(record.sourceApp ?? record.domain ?? L10n.string(
+                    "source.unknown",
+                    fallback: "Unknown source"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(record.occurredAt.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                 sourceLink(for: record)
             }
@@ -435,8 +471,11 @@ private struct ScreenshotBrowser: View {
     }
 
     private var positionText: String {
-        guard let selectedIndex else { return "0 of \(records.count)" }
-        return "\(selectedIndex + 1) of \(records.count)"
+        L10n.format(
+            "screenshot.position",
+            fallback: "%lld of %lld",
+            Int64((selectedIndex ?? -1) + 1),
+            Int64(records.count))
     }
 
     private func move(by offset: Int) {
@@ -519,7 +558,10 @@ private struct ScreenshotFilmstripThumbnail: View {
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: selected ? 3 : 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Select screenshot from \(record.occurredAt.formatted(date: .omitted, time: .shortened))")
+        .accessibilityLabel(L10n.format(
+            "accessibility.select_screenshot",
+            fallback: "Select screenshot from %@",
+            record.occurredAt.formatted(date: .omitted, time: .shortened)))
     }
 }
 
@@ -594,7 +636,11 @@ private struct MonthDashboard: View {
                     Text("\(activityCount)")
                         .font(.system(.title3, design: .rounded, weight: .bold))
                         .foregroundStyle(activityCount == 0 ? Color.secondary : Color.orange)
-                    Text(activityCount == 1 ? "capture" : "captures").font(.caption2).foregroundStyle(.secondary)
+                    Text(L10n.string(
+                        activityCount == 1 ? "count.capture.one" : "count.capture.many",
+                        fallback: activityCount == 1 ? "capture" : "captures"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(10).frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
                 .background(Color.orange.opacity(min(0.035 + Double(activityCount) / 80, 0.22)), in: RoundedRectangle(cornerRadius: 9))
@@ -626,7 +672,9 @@ private struct SearchResults: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Clear search query")
+                    .accessibilityLabel(L10n.string(
+                        "accessibility.clear_search",
+                        fallback: "Clear search query"))
                 }
             }
                 .padding(.horizontal, 12).frame(height: 38).background(.quaternary, in: RoundedRectangle(cornerRadius: 9)).padding(18)
@@ -663,13 +711,13 @@ private struct CountStrip: View {
 
 private struct Metric: View {
     let value: Int, label: String, color: Color
-    var body: some View { VStack(alignment: .leading, spacing: 2) { Text("\(value)").font(.system(.title2, design: .rounded, weight: .bold)).foregroundStyle(color); Text(label).font(.system(size: 9, weight: .bold, design: .rounded)).tracking(0.7).foregroundStyle(.secondary) } }
+    var body: some View { VStack(alignment: .leading, spacing: 2) { Text("\(value)").font(.system(.title2, design: .rounded, weight: .bold)).foregroundStyle(color); Text(L10n.string(label, fallback: label)).font(.system(size: 9, weight: .bold, design: .rounded)).tracking(0.7).foregroundStyle(.secondary) } }
 }
 
 private struct SectionLabel: View {
     let title: String, count: Int
     init(_ title: String, count: Int) { self.title = title; self.count = count }
-    var body: some View { HStack { Text(title).font(.system(size: 10, weight: .bold, design: .rounded)).tracking(0.8); Spacer(); Text("\(count)").font(.caption).foregroundStyle(.secondary) } }
+    var body: some View { HStack { Text(L10n.string(title, fallback: title)).font(.system(size: 10, weight: .bold, design: .rounded)).tracking(0.8); Spacer(); Text("\(count)").font(.caption).foregroundStyle(.secondary) } }
 }
 
 private struct ActivityRow: View {
@@ -680,11 +728,14 @@ private struct ActivityRow: View {
             Button { store.toggleSelection(record.id) } label: { Image(systemName: store.selectedIDs.contains(record.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(store.selectedIDs.contains(record.id) ? .orange : .secondary) }.buttonStyle(.plain)
             Image(systemName: record.type.systemImage).foregroundStyle(color).frame(width: 24, height: 24).background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 4) {
-                HStack { Text(record.type.rawValue.uppercased()).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(color); Spacer(); Text(record.occurredAt.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.tertiary) }
+                HStack { Text(record.type.displayName.uppercased()).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(color); Spacer(); Text(record.occurredAt.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.tertiary) }
                 if record.type == .screenshot {
                     ScreenshotCard(record: record, store: store).frame(height: 150)
                 } else {
-                    Text(record.snippet.isEmpty ? "Captured activity" : record.snippet).font(.callout).lineLimit(3).textSelection(.enabled)
+                    Text(record.snippet.isEmpty
+                        ? L10n.string("activity.captured", fallback: "Captured activity")
+                        : record.snippet)
+                        .font(.callout).lineLimit(3).textSelection(.enabled)
                 }
                 HStack { if let app = record.sourceApp { Label(app, systemImage: "app").font(.caption).foregroundStyle(.secondary) }; Spacer(); sourceLink }
             }
@@ -704,14 +755,21 @@ private struct ScreenshotCard: View {
                 switch store.thumbnails[hash] {
                 case .loaded(let image):
                     Button { store.inspect(record) } label: { Image(decorative: image, scale: 1).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: .infinity) }
-                        .buttonStyle(.plain).accessibilityLabel("Inspect screenshot")
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(L10n.string(
+                            "accessibility.inspect_screenshot",
+                            fallback: "Inspect screenshot"))
                 case .failed(let message): failure(message) { store.retryThumbnail(for: record) }
                 case .loading, .none:
                     VStack(spacing: 7) { ProgressView().controlSize(.small); Text("Loading local image…").font(.caption).foregroundStyle(.secondary) }
                         .onAppear { store.requestThumbnail(for: record) }
                 }
             } else {
-                failure("Screenshot is awaiting the next import.") { Task { await store.synchronize() } }
+                failure(L10n.string(
+                    "screenshot.awaiting_import",
+                    fallback: "Screenshot is awaiting the next import.")) {
+                    Task { await store.synchronize() }
+                }
             }
         }.frame(maxWidth: .infinity, minHeight: 112, maxHeight: 170).background(Color.black.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
             .clipShape(RoundedRectangle(cornerRadius: 8)).overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator.opacity(0.45)))
@@ -766,7 +824,9 @@ private struct ScreenshotInspector: View {
             Divider()
             VStack(alignment: .leading, spacing: 8) {
                 Text("SOURCE").font(.system(size: 9, weight: .bold, design: .rounded)).tracking(0.7).foregroundStyle(.secondary)
-                Label(record.sourceApp ?? "Unknown app", systemImage: "app")
+                Label(record.sourceApp ?? L10n.string(
+                    "source.unknown_app",
+                    fallback: "Unknown app"), systemImage: "app")
                 Label(record.occurredAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
                 if let domain = record.domain { Label(domain, systemImage: "globe") }
                 HStack { if let w = record.pixelWidth, let h = record.pixelHeight { Label("\(w) × \(h)", systemImage: "aspectratio") }; Spacer(); sourceLink }
@@ -790,7 +850,14 @@ private struct CitedSourcesBrowser: View {
                 }
                 .buttonStyle(.bordered)
                 Spacer()
-                if let items { Text("\(items.count) sources").font(.callout).foregroundStyle(.secondary) }
+                if let items {
+                    Text(L10n.format(
+                        items.count == 1 ? "sources.count.one" : "sources.count.many",
+                        fallback: items.count == 1 ? "%lld source" : "%lld sources",
+                        Int64(items.count)))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(14)
             Divider()
@@ -841,7 +908,10 @@ private struct CitedSourceRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Source \(item.ordinal)")
+                Text(L10n.format(
+                    "source.ordinal",
+                    fallback: "Source %lld",
+                    Int64(item.ordinal)))
                     .font(.headline)
                     .foregroundStyle(isSelected ? Color.orange : Color.primary)
                 Spacer()
@@ -854,7 +924,9 @@ private struct CitedSourceRow: View {
 
             if let record = item.record {
                 HStack(spacing: 8) {
-                    Label(record.sourceApp ?? "Unknown app", systemImage: "app")
+                    Label(record.sourceApp ?? L10n.string(
+                        "source.unknown_app",
+                        fallback: "Unknown app"), systemImage: "app")
                     if let domain = record.domain { Label(domain, systemImage: "globe") }
                 }
                 .font(.caption)
@@ -863,7 +935,9 @@ private struct CitedSourceRow: View {
                 if record.type == .screenshot {
                     ScreenshotCard(record: record, store: store).frame(height: 170)
                 } else {
-                    Text(record.snippet.isEmpty ? "Captured activity" : record.snippet)
+                    Text(record.snippet.isEmpty
+                        ? L10n.string("activity.captured", fallback: "Captured activity")
+                        : record.snippet)
                         .font(.callout)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -969,12 +1043,16 @@ private struct ChatHeader: View {
                     }
                 }
                 .disabled(store.isAsking || store.chatThreads.isEmpty)
-                .help("Open a saved chat")
+                .help(L10n.string(
+                    "help.open_saved_chat",
+                    fallback: "Open a saved chat"))
                 Button { store.beginNewChat() } label: {
                     Label("New Chat", systemImage: "plus.bubble")
                 }
                     .disabled(store.isAsking)
-                    .help("Start a chat with a new fixed scope")
+                    .help(L10n.string(
+                        "help.new_fixed_scope_chat",
+                        fallback: "Start a chat with a new fixed scope"))
             }
             Text(store.chatScopeLabel).font(.caption).foregroundStyle(.secondary)
         }
@@ -992,7 +1070,9 @@ private struct ChatBubble: View {
     @ObservedObject var store: ActivityStore
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(message.role == .user ? "YOU" : "X ACTIVITY")
+            Text(L10n.string(
+                message.role == .user ? "chat.role.you" : "chat.role.xactivity",
+                fallback: message.role == .user ? "YOU" : "X ACTIVITY"))
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(message.role == .user ? Color.secondary : Color.orange)
             if message.role == .assistant {
@@ -1010,7 +1090,14 @@ private struct ChatBubble: View {
                     store.showCitedSources(message.sourceIDs)
                 } label: {
                     Label(
-                        "View \(message.sourceIDs.count) source\(message.sourceIDs.count == 1 ? "" : "s")",
+                        L10n.format(
+                            message.sourceIDs.count == 1
+                                ? "sources.view.one"
+                                : "sources.view.many",
+                            fallback: message.sourceIDs.count == 1
+                                ? "View %lld source"
+                                : "View %lld sources",
+                            Int64(message.sourceIDs.count)),
                         systemImage: "doc.text.magnifyingglass")
                 }
                 .buttonStyle(.bordered)
@@ -1201,5 +1288,5 @@ private struct StableState: View {
     let icon: String, title: String, detail: String
     var action: String?; var handler: (() -> Void)?
     init(icon: String, title: String, detail: String, action: String? = nil, handler: (() -> Void)? = nil) { self.icon = icon; self.title = title; self.detail = detail; self.action = action; self.handler = handler }
-    var body: some View { VStack(spacing: 11) { Image(systemName: icon).font(.system(size: 34)).foregroundStyle(.orange); Text(title).font(.title3.weight(.semibold)); Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380); if let action, let handler { Button(action, action: handler).buttonStyle(.borderedProminent).tint(.orange) } }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity) }
+    var body: some View { VStack(spacing: 11) { Image(systemName: icon).font(.system(size: 34)).foregroundStyle(.orange); Text(L10n.string(title, fallback: title)).font(.title3.weight(.semibold)); Text(L10n.string(detail, fallback: detail)).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380); if let action, let handler { Button(L10n.string(action, fallback: action), action: handler).buttonStyle(.borderedProminent).tint(.orange) } }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity) }
 }

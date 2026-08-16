@@ -22,7 +22,9 @@ struct RecapChatComposer: NSViewRepresentable {
         editor.isHorizontallyResizable = false
         editor.autoresizingMask = [.width]
         editor.textContainerInset = NSSize(width: 9, height: 7)
-        editor.setAccessibilityLabel("Ask about this local period")
+        editor.setAccessibilityLabel(L10n.string(
+            "accessibility.ask_local_period",
+            fallback: "Ask about this local period"))
         if let container = editor.textContainer {
             container.widthTracksTextView = true
             container.heightTracksTextView = false

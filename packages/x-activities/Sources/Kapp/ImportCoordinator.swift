@@ -26,7 +26,10 @@ actor ImportCoordinator {
         let prior = try await database.historyStatus()
         let liveStart = now.addingTimeInterval(-86_400)
         if let previous = prior.lastSuccessfulImport, previous < liveStart {
-            gaps.append("Import gap: the Kapp was not open between \(previous.formatted(date: .abbreviated, time: .shortened)) and the current live window.")
+            gaps.append(L10n.format(
+                "import.gap.offline",
+                fallback: "Import gap: the Kapp was not open between %@ and the current live window.",
+                previous.formatted(date: .abbreviated, time: .shortened)))
         }
         let requestedStart = max(liveStart, (prior.lastSuccessfulImport ?? liveStart).addingTimeInterval(-overlap))
         let hits = try await fetchWindow(start: requestedStart, end: now)
@@ -46,7 +49,16 @@ actor ImportCoordinator {
         let mediaResult = await fetchMissingMedia(hashes)
         for stored in mediaResult.media { try await database.upsertMedia(stored, storedAt: now) }
         if mediaResult.failures > 0 {
-            gaps.append("\(mediaResult.failures) screenshot\(mediaResult.failures == 1 ? "" : "s") could not be cached locally; retry import to complete them.")
+            let key = mediaResult.failures == 1
+                ? "import.gap.screenshot.one"
+                : "import.gap.screenshot.many"
+            let fallback = mediaResult.failures == 1
+                ? "%lld screenshot could not be cached locally; retry import to complete it."
+                : "%lld screenshots could not be cached locally; retry import to complete them."
+            gaps.append(L10n.format(
+                key,
+                fallback: fallback,
+                Int64(mediaResult.failures)))
         }
         let orphaned = try await database.enforceRetention()
         try await media.delete(relativePaths: orphaned)
@@ -67,7 +79,9 @@ actor ImportCoordinator {
 
     private func fetchWindow(start: Date, end: Date) async throws -> [MemoryHit] {
         guard remainingSearchCalls >= 2 else {
-            gaps.append("Coverage is incomplete because the bounded import request budget was reached.")
+            gaps.append(L10n.string(
+                "import.gap.request_budget",
+                fallback: "Coverage is incomplete because the bounded import request budget was reached."))
             return []
         }
         remainingSearchCalls -= 2
@@ -93,7 +107,10 @@ actor ImportCoordinator {
                 async let second = fetchWindow(start: midpoint, end: end)
                 return try await first + second
             }
-            gaps.append("Coverage may be incomplete near \(start.formatted(date: .abbreviated, time: .shortened)) because a minimum import slice reached 100 results.")
+            gaps.append(L10n.format(
+                "import.gap.saturated",
+                fallback: "Coverage may be incomplete near %@ because a minimum import slice reached 100 results.",
+                start.formatted(date: .abbreviated, time: .shortened)))
         }
         return domainHits + mentionHits
     }

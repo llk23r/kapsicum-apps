@@ -4,18 +4,17 @@
     {
       "appID" : "dev.kapsicum.x-activities",
       "name" : "xactivity",
-      "version" : "0.2.0",
+      "version" : "0.2.1",
       "description" : "Turn approved x.com captures into a private local activity journal with search, screenshots, recaps, and optional AI.",
       "usesAI" : true,
       "requestedReadCapabilityIDs" : [
         "archive.getScreenshot",
-        "archive.searchAudioSnippets",
         "archive.searchTextSnippets"
       ],
-      "sourceZIPLocation" : "https://raw.githubusercontent.com/llk23r/kapsicum-apps/main/releases/xactivity-0.2.0.zip",
-      "sourceDigest" : "44c81e8de4744bd51788b1658f43cb22f468a192bf97164b61512442eaa20e9a",
-      "zipSHA256" : "f699c0fa224f5bd4cfe44730145af470a0f787d5e5f6ac7ecfd9472ef265165d",
-      "includedArchiveName" : "xactivity-0.2.0.zip"
+      "sourceZIPLocation" : "https://raw.githubusercontent.com/llk23r/kapsicum-apps/main/releases/xactivity-0.2.1.zip",
+      "sourceDigest" : "5897126ea6cd7cdf5e922d117624664994fb2fe7d65028b8ef0d0ea25d55d85d",
+      "zipSHA256" : "6e195d4c7e4452ec589bb08cf4d7d91871ce7b5bc78cf4be800bdee7a53a4cef",
+      "includedArchiveName" : "xactivity-0.2.1.zip"
     }
   ]
 }

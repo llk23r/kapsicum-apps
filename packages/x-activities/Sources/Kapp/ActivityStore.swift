@@ -120,7 +120,10 @@ final class ActivityStore: ObservableObject {
             if importState.canImport { importState = .idle }
             await reloadLocal()
         } catch {
-            importState = .failed("Local history could not be deleted: \(Self.message(error))")
+            importState = .failed(L10n.format(
+                "error.history.delete",
+                fallback: "Local history could not be deleted: %@",
+                Self.message(error)))
         }
     }
 
@@ -141,7 +144,11 @@ final class ActivityStore: ObservableObject {
         thumbnails[hash] = .loading
         if activeThumbnailLoads < maximumConcurrentThumbnails { beginThumbnail(record) }
         else if pendingThumbnails.count < 32 { pendingThumbnails.append(record) }
-        else { thumbnails[hash] = .failed("Thumbnail queue is full. Retry when fewer images are visible.") }
+        else {
+            thumbnails[hash] = .failed(L10n.string(
+                "error.thumbnail.queue_full",
+                fallback: "Thumbnail queue is full. Retry when fewer images are visible."))
+        }
     }
 
     func retryThumbnail(for record: ActivityRecord) {
@@ -228,7 +235,10 @@ final class ActivityStore: ObservableObject {
                 sourceBrowser = .loaded(items: items, selectedOrdinal: boundedOrdinal)
             } catch {
                 guard sourceBrowserToken == token else { return }
-                sourceBrowser = .failed("Sources could not be opened: \(Self.message(error))")
+                sourceBrowser = .failed(L10n.format(
+                    "error.sources.open",
+                    fallback: "Sources could not be opened: %@",
+                    Self.message(error)))
             }
         }
     }
@@ -286,7 +296,9 @@ final class ActivityStore: ObservableObject {
             guard aiRequestToken == requestToken else { return }
             guard !sources.isEmpty else {
                 isAsking = false
-                aiError = "There is no local history in this chat’s fixed scope."
+                aiError = L10n.string(
+                    "error.chat.no_history",
+                    fallback: "There is no local history in this chat’s fixed scope.")
                 return
             }
             let sourceIDs = sources.map(\.id)
@@ -334,7 +346,11 @@ final class ActivityStore: ObservableObject {
         aiRequestToken = UUID()
         guard let runID = activeRunID else { isAsking = false; return }
         do { try await KapsicumAI.cancel(runID: runID) }
-        catch { aiError = "The request stopped locally, but cancellation could not be confirmed." }
+        catch {
+            aiError = L10n.string(
+                "error.chat.cancel_unconfirmed",
+                fallback: "The request stopped locally, but cancellation could not be confirmed.")
+        }
         activeRunID = nil; activeRunThreadID = nil; isAsking = false
     }
 
@@ -359,21 +375,50 @@ final class ActivityStore: ObservableObject {
             aiError = nil
         } catch {
             guard chatLoadToken == token else { return }
-            aiError = "Saved chat could not be opened: \(Self.message(error))"
+            aiError = L10n.format(
+                "error.chat.open",
+                fallback: "Saved chat could not be opened: %@",
+                Self.message(error))
         }
     }
 
     var chatScopeLabel: String {
-        if let activeThread { return "Fixed scope: \(activeThread.scope.label)" }
-        return "Next chat: \(currentChatScope.label)"
+        if let activeThread {
+            return L10n.format(
+                "chat.scope.fixed",
+                fallback: "Fixed scope: %@",
+                activeThread.scope.label)
+        }
+        return L10n.format(
+            "chat.scope.next",
+            fallback: "Next chat: %@",
+            currentChatScope.label)
     }
 
     var recap: String {
-        guard !records.isEmpty else { return "No local x.com activity in this view." }
+        guard !records.isEmpty else {
+            return L10n.string(
+                "recap.empty",
+                fallback: "No local x.com activity in this view.")
+        }
         let links = records.filter { $0.type == .link }.count
         let images = records.filter { $0.type == .screenshot }.count
         let apps = Set(records.compactMap(\.sourceApp)).count
-        return "\(records.count) captures across \(apps) app\(apps == 1 ? "" : "s"), including \(links) saved link\(links == 1 ? "" : "s") and \(images) visual reference\(images == 1 ? "" : "s")."
+        return L10n.format(
+            "recap.summary",
+            fallback: "%lld %@ across %lld %@, including %lld %@ and %lld %@.",
+            Int64(records.count),
+            L10n.string(records.count == 1 ? "count.capture.one" : "count.capture.many",
+                        fallback: records.count == 1 ? "capture" : "captures"),
+            Int64(apps),
+            L10n.string(apps == 1 ? "count.app.one" : "count.app.many",
+                        fallback: apps == 1 ? "app" : "apps"),
+            Int64(links),
+            L10n.string(links == 1 ? "count.saved_link.one" : "count.saved_link.many",
+                        fallback: links == 1 ? "saved link" : "saved links"),
+            Int64(images),
+            L10n.string(images == 1 ? "count.visual_reference.one" : "count.visual_reference.many",
+                        fallback: images == 1 ? "visual reference" : "visual references"))
     }
 
     var visibleRange: (start: Date, end: Date) {
@@ -440,7 +485,12 @@ final class ActivityStore: ObservableObject {
             case .running: try await Task.sleep(for: .seconds(1))
             case .succeeded:
                 guard activeRunID == runID, activeRunThreadID == threadID, aiRequestToken == requestToken else { return }
-                let message = ChatMessage(role: .assistant, text: status.answer ?? "Kapsicum returned an empty answer.", sourceIDs: sourceIDs)
+                let message = ChatMessage(
+                    role: .assistant,
+                    text: status.answer ?? L10n.string(
+                        "error.chat.empty_answer",
+                        fallback: "Kapsicum returned an empty answer."),
+                    sourceIDs: sourceIDs)
                 try await database.appendChatMessage(message, threadID: threadID)
                 guard activeRunID == runID, activeRunThreadID == threadID, aiRequestToken == requestToken else { return }
                 if activeThread?.id == threadID {
@@ -450,7 +500,11 @@ final class ActivityStore: ObservableObject {
                 activeRunID = nil; activeRunThreadID = nil; isAsking = false
                 await refreshChatThreads()
                 return
-            case .failed: throw KapsicumRuntimeError.requestFailed(status.errorCode ?? "The AI request failed.")
+            case .failed:
+                throw KapsicumRuntimeError.requestFailed(
+                    status.errorCode ?? L10n.string(
+                        "error.chat.request_failed",
+                        fallback: "The AI request failed."))
             case .cancelled: activeRunID = nil; activeRunThreadID = nil; isAsking = false; return
             }
         }
@@ -461,7 +515,16 @@ final class ActivityStore: ObservableObject {
     private var currentChatScope: ChatScope {
         if !selectedIDs.isEmpty {
             let ids = selectedIDs.sorted()
-            return ChatScope(kind: .selected, start: nil, end: nil, sourceIDs: ids, label: "\(ids.count) selected capture\(ids.count == 1 ? "" : "s")")
+            let label = L10n.format(
+                ids.count == 1 ? "chat.scope.selected.one" : "chat.scope.selected.many",
+                fallback: ids.count == 1 ? "%lld selected capture" : "%lld selected captures",
+                Int64(ids.count))
+            return ChatScope(
+                kind: .selected,
+                start: nil,
+                end: nil,
+                sourceIDs: ids,
+                label: label)
         }
         let range = visibleRange
         let label: String
@@ -469,11 +532,16 @@ final class ActivityStore: ObservableObject {
         case .today:
             label = selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
         case .week:
-            label = "Week of \(range.start.formatted(date: .abbreviated, time: .omitted))"
+            label = L10n.format(
+                "chat.scope.week",
+                fallback: "Week of %@",
+                range.start.formatted(date: .abbreviated, time: .omitted))
         case .month:
             label = selectedDate.formatted(.dateTime.month(.wide).year())
         case .search:
-            label = "All accumulated local history"
+            label = L10n.string(
+                "chat.scope.all_history",
+                fallback: "All accumulated local history")
         }
         return ChatScope(kind: .range, start: range.start, end: range.end, sourceIDs: [], label: label)
     }
@@ -502,7 +570,10 @@ final class ActivityStore: ObservableObject {
             chat = Array(loaded.1.suffix(50))
         } catch {
             guard chatLoadToken == token else { return }
-            aiError = "Saved chats could not be loaded: \(Self.message(error))"
+            aiError = L10n.format(
+                "error.chat.load",
+                fallback: "Saved chats could not be loaded: %@",
+                Self.message(error))
         }
     }
 
@@ -512,7 +583,10 @@ final class ActivityStore: ObservableObject {
             chatThreads = threads
             if let id = activeThread?.id, let updated = threads.first(where: { $0.id == id }) { activeThread = updated }
         } catch {
-            aiError = "Chat history could not be refreshed: \(Self.message(error))"
+            aiError = L10n.format(
+                "error.chat.refresh",
+                fallback: "Chat history could not be refreshed: %@",
+                Self.message(error))
         }
     }
 
