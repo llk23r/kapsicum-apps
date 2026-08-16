@@ -12,6 +12,7 @@ actor ImportCoordinator {
     private let subject = ActivitySubjectScope.configured
     private var remainingSearchCalls = 0
     private var gaps: [String] = []
+    private var earliestIncompleteSearchStart: Date?
     private let minimumSlice: TimeInterval = 15 * 60
     private let overlap: TimeInterval = 5 * 60
 
@@ -23,6 +24,7 @@ actor ImportCoordinator {
     func synchronize(now: Date = Date()) async throws -> Outcome {
         remainingSearchCalls = 48
         gaps = []
+        earliestIncompleteSearchStart = nil
         let prior = try await database.historyStatus()
         let liveStart = now.addingTimeInterval(-86_400)
         if let previous = prior.lastSuccessfulImport, previous < liveStart {
@@ -69,9 +71,13 @@ actor ImportCoordinator {
         } ?? false
         let isContiguous = prior.lastSuccessfulImport.map { $0 >= liveStart } ?? false
         let mayClearPriorGap = prior.gapMessage != nil && gap == nil && isContiguous && hasNewCoverageRecord
+        // Records beyond an incomplete slice are still useful, but they are
+        // not proof of contiguous coverage. Keep the cursor at the earliest
+        // unresolved boundary so the next synchronization retries that slice.
+        let successfulEnd = earliestIncompleteSearchStart ?? now
         try await database.recordSuccessfulImport(
             start: requestedStart,
-            end: now,
+            end: successfulEnd,
             gap: gap,
             clearExistingGap: mayClearPriorGap)
         return Outcome(importedCount: deduplicated.count, screenshotCount: mediaResult.media.count, gapMessage: gap)
@@ -79,6 +85,7 @@ actor ImportCoordinator {
 
     private func fetchWindow(start: Date, end: Date) async throws -> [MemoryHit] {
         guard remainingSearchCalls >= 2 else {
+            preserveRetryBoundary(at: start)
             gaps.append(L10n.string(
                 "import.gap.request_budget",
                 fallback: "Coverage is incomplete because the bounded import request budget was reached."))
@@ -107,12 +114,19 @@ actor ImportCoordinator {
                 async let second = fetchWindow(start: midpoint, end: end)
                 return try await first + second
             }
+            preserveRetryBoundary(at: start)
             gaps.append(L10n.format(
                 "import.gap.saturated",
                 fallback: "Coverage may be incomplete near %@ because a minimum import slice reached 100 results.",
                 start.formatted(date: .abbreviated, time: .shortened)))
         }
         return domainHits + mentionHits
+    }
+
+    private func preserveRetryBoundary(at start: Date) {
+        earliestIncompleteSearchStart = min(
+            earliestIncompleteSearchStart ?? start,
+            start)
     }
 
     private func fetchMissingMedia(_ hashes: [String]) async -> (media: [StoredMedia], failures: Int) {

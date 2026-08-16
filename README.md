@@ -2,7 +2,7 @@
 
 This repository is the public, static source catalogue for Kapps. A Kapp is reviewed and built from source on the recipient's Mac; this repository does not distribute executable binaries, grant access, or certify publishers.
 
-The first Included Kapp is [xactivity](packages/x-activities), a private local journal built from approved x.com captures. Its checked-in portable source ZIP is [xactivity-0.2.2.zip](releases/xactivity-0.2.2.zip), and `catalogue.json` pins both the ZIP SHA-256 and Kapsicum's canonical source digest.
+The first Included Kapp is [xactivity](packages/x-activities), a private local journal built from approved x.com captures. Its checked-in portable source ZIP is [xactivity-0.2.3.zip](releases/xactivity-0.2.3.zip), and `catalogue.json` pins both the ZIP SHA-256 and Kapsicum's canonical source digest. Prior release ZIPs remain available for explicit update and restore flows.
 
 ## One portable source contract
 
