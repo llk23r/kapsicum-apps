@@ -211,6 +211,7 @@ struct LocalHistoryStatus: Equatable, Sendable {
     var coverageStart: Date?
     var coverageEnd: Date?
     var gapMessage: String?
+    var hasRetryableGap = false
 
     static let empty = LocalHistoryStatus(count: 0, diskBytes: 0)
 }

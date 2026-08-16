@@ -11,7 +11,7 @@ actor ImportCoordinator {
     private let media: MediaStore
     private let subject = ActivitySubjectScope.configured
     private var remainingSearchCalls = 0
-    private var gaps: [String] = []
+    private var retryableGaps: [String] = []
     private var earliestIncompleteSearchStart: Date?
     private let minimumSlice: TimeInterval = 15 * 60
     private let overlap: TimeInterval = 5 * 60
@@ -23,15 +23,18 @@ actor ImportCoordinator {
 
     func synchronize(now: Date = Date()) async throws -> Outcome {
         remainingSearchCalls = 48
-        gaps = []
+        retryableGaps = []
         earliestIncompleteSearchStart = nil
         let prior = try await database.historyStatus()
         let liveStart = now.addingTimeInterval(-86_400)
+        let irreversibleGap: String?
         if let previous = prior.lastSuccessfulImport, previous < liveStart {
-            gaps.append(L10n.format(
+            irreversibleGap = L10n.format(
                 "import.gap.offline",
                 fallback: "Import gap: the Kapp was not open between %@ and the current live window.",
-                previous.formatted(date: .abbreviated, time: .shortened)))
+                previous.formatted(date: .abbreviated, time: .shortened))
+        } else {
+            irreversibleGap = nil
         }
         let requestedStart = max(liveStart, (prior.lastSuccessfulImport ?? liveStart).addingTimeInterval(-overlap))
         let hits = try await fetchWindow(start: requestedStart, end: now)
@@ -57,16 +60,16 @@ actor ImportCoordinator {
             let fallback = mediaResult.failures == 1
                 ? "%lld screenshot could not be cached locally; retry import to complete it."
                 : "%lld screenshots could not be cached locally; retry import to complete them."
-            gaps.append(L10n.format(
+            retryableGaps.append(L10n.format(
                 key,
                 fallback: fallback,
                 Int64(mediaResult.failures)))
         }
         let orphaned = try await database.enforceRetention()
         try await media.delete(relativePaths: orphaned)
-        let gap = gaps.isEmpty ? nil : gaps.joined(separator: " ")
+        let retryableGap = retryableGaps.isEmpty ? nil : retryableGaps.joined(separator: " ")
         let isContiguous = prior.lastSuccessfulImport.map { $0 >= liveStart } ?? false
-        let mayClearPriorGap = prior.gapMessage != nil && gap == nil && isContiguous
+        let mayClearPriorRetryableGap = prior.hasRetryableGap && retryableGap == nil && isContiguous
         // Records beyond an incomplete slice are still useful, but they are
         // not proof of contiguous coverage. Keep the cursor at the earliest
         // unresolved boundary so the next synchronization retries that slice.
@@ -74,15 +77,20 @@ actor ImportCoordinator {
         try await database.recordSuccessfulImport(
             start: requestedStart,
             end: successfulEnd,
-            gap: gap,
-            clearExistingGap: mayClearPriorGap)
-        return Outcome(importedCount: deduplicated.count, screenshotCount: mediaResult.media.count, gapMessage: gap)
+            retryableGap: retryableGap,
+            irreversibleGap: irreversibleGap,
+            clearExistingRetryableGap: mayClearPriorRetryableGap)
+        let currentGaps = [irreversibleGap, retryableGap].compactMap { $0 }
+        return Outcome(
+            importedCount: deduplicated.count,
+            screenshotCount: mediaResult.media.count,
+            gapMessage: currentGaps.isEmpty ? nil : currentGaps.joined(separator: " "))
     }
 
     private func fetchWindow(start: Date, end: Date) async throws -> [MemoryHit] {
         guard remainingSearchCalls >= 2 else {
             preserveRetryBoundary(at: start)
-            gaps.append(L10n.string(
+            retryableGaps.append(L10n.string(
                 "import.gap.request_budget",
                 fallback: "Coverage is incomplete because the bounded import request budget was reached."))
             return []
@@ -111,7 +119,7 @@ actor ImportCoordinator {
                 return try await first + second
             }
             preserveRetryBoundary(at: start)
-            gaps.append(L10n.format(
+            retryableGaps.append(L10n.format(
                 "import.gap.saturated",
                 fallback: "Coverage may be incomplete near %@ because a minimum import slice reached 100 results.",
                 start.formatted(date: .abbreviated, time: .shortened)))

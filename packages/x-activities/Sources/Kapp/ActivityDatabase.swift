@@ -261,10 +261,13 @@ actor ActivityDatabase {
         let count = Int(sqlite3_column_int64(activity, 2))
         let earliest = count > 0 ? Date(timeIntervalSince1970: sqlite3_column_double(activity, 0)) : nil
         let latest = count > 0 ? Date(timeIntervalSince1970: sqlite3_column_double(activity, 1)) : nil
-        let sync = try prepare("SELECT last_successful_import, coverage_start, coverage_end, gap_message FROM sync_metadata WHERE id=1")
+        let sync = try prepare("SELECT last_successful_import, coverage_start, coverage_end, gap_message, irreversible_gap_message FROM sync_metadata WHERE id=1")
         defer { sqlite3_finalize(sync) }
         let hasSync = sqlite3_step(sync) == SQLITE_ROW
         let disk = try databaseDiskBytes()
+        let retryableGap = hasSync ? text(sync, 3) : nil
+        let irreversibleGap = hasSync ? text(sync, 4) : nil
+        let gaps = [irreversibleGap, retryableGap].compactMap { $0 }
         return LocalHistoryStatus(
             earliest: earliest,
             latest: latest,
@@ -273,20 +276,24 @@ actor ActivityDatabase {
             lastSuccessfulImport: hasSync && sqlite3_column_type(sync, 0) != SQLITE_NULL ? Date(timeIntervalSince1970: sqlite3_column_double(sync, 0)) : nil,
             coverageStart: hasSync && sqlite3_column_type(sync, 1) != SQLITE_NULL ? Date(timeIntervalSince1970: sqlite3_column_double(sync, 1)) : nil,
             coverageEnd: hasSync && sqlite3_column_type(sync, 2) != SQLITE_NULL ? Date(timeIntervalSince1970: sqlite3_column_double(sync, 2)) : nil,
-            gapMessage: hasSync ? text(sync, 3) : nil)
+            gapMessage: gaps.isEmpty ? nil : gaps.joined(separator: " "),
+            hasRetryableGap: retryableGap != nil)
     }
 
     func recordSuccessfulImport(
         start: Date,
         end: Date,
-        gap: String?,
-        clearExistingGap: Bool
+        retryableGap: String?,
+        irreversibleGap: String?,
+        clearExistingRetryableGap: Bool
     ) throws {
         try openIfNeeded()
         let previous = try historyStatus()
         let statement = try prepare("""
-            INSERT INTO sync_metadata(id, last_successful_import, coverage_start, coverage_end, gap_message)
-            VALUES (1, ?, ?, ?, ?)
+            INSERT INTO sync_metadata(
+              id, last_successful_import, coverage_start, coverage_end,
+              gap_message, irreversible_gap_message)
+            VALUES (1, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               last_successful_import=excluded.last_successful_import,
               coverage_start=CASE WHEN sync_metadata.coverage_start IS NULL THEN excluded.coverage_start ELSE MIN(sync_metadata.coverage_start, excluded.coverage_start) END,
@@ -295,14 +302,18 @@ actor ActivityDatabase {
                 WHEN excluded.gap_message IS NOT NULL THEN excluded.gap_message
                 WHEN ?=1 THEN NULL
                 ELSE sync_metadata.gap_message
-              END
+              END,
+              irreversible_gap_message=COALESCE(
+                sync_metadata.irreversible_gap_message,
+                excluded.irreversible_gap_message)
             """)
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_double(statement, 1, end.timeIntervalSince1970)
         sqlite3_bind_double(statement, 2, min(previous.coverageStart ?? start, start).timeIntervalSince1970)
         sqlite3_bind_double(statement, 3, end.timeIntervalSince1970)
-        bind(gap, to: statement, at: 4)
-        sqlite3_bind_int(statement, 5, clearExistingGap ? 1 : 0)
+        bind(retryableGap, to: statement, at: 4)
+        bind(irreversibleGap, to: statement, at: 5)
+        sqlite3_bind_int(statement, 6, clearExistingRetryableGap ? 1 : 0)
         try stepDone(statement)
     }
 
@@ -431,6 +442,19 @@ actor ActivityDatabase {
                 try execute("CREATE INDEX chat_threads_updated_at ON chat_threads(updated_at DESC)")
                 try execute("CREATE INDEX chat_messages_thread_sequence ON chat_messages(thread_id, sequence)")
                 try execute("PRAGMA user_version=2")
+            }
+        }
+        if version < 3 {
+            try transaction {
+                try execute("ALTER TABLE sync_metadata ADD COLUMN irreversible_gap_message TEXT")
+                // Existing rows predate gap classification. Preserve them as
+                // irreversible rather than risk clearing evidence of missing history.
+                try execute("""
+                    UPDATE sync_metadata
+                    SET irreversible_gap_message=gap_message, gap_message=NULL
+                    WHERE gap_message IS NOT NULL
+                    """)
+                try execute("PRAGMA user_version=3")
             }
         }
     }
