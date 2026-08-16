@@ -48,7 +48,10 @@ struct KappContent: View {
                         L10n.string("Import Now"),
                         systemImage: "arrow.triangle.2.circlepath")
                 }
-                    .disabled(store.importState.isImporting || !store.importState.canImport)
+                    .disabled(
+                        store.isDeletingHistory
+                            || store.importState.isImporting
+                            || !store.importState.canImport)
             }
         }
         .confirmationDialog(
@@ -58,6 +61,7 @@ struct KappContent: View {
             Button(L10n.string("Delete Local History"), role: .destructive) {
                 Task { await store.deleteLocalHistory() }
             }
+            .disabled(!store.canDeleteLocalHistory)
             Button(L10n.string("Cancel"), role: .cancel) {}
         } message: {
             Text(L10n.string(
@@ -144,6 +148,7 @@ private struct Sidebar: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .tint(.red)
+                    .disabled(!store.canDeleteLocalHistory)
                 }
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             } header: {
@@ -166,6 +171,7 @@ private struct Sidebar: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .disabled(store.isDeletingHistory)
         case .importing:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
@@ -183,6 +189,7 @@ private struct Sidebar: View {
                 Button(L10n.string("Retry Import")) {
                     Task { await store.synchronize() }
                 }
+                .disabled(store.isDeletingHistory)
             }
         }
     }

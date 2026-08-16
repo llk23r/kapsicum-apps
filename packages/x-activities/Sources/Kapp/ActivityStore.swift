@@ -10,6 +10,7 @@ final class ActivityStore: ObservableObject {
     @Published private(set) var history: LocalHistoryStatus = .empty
     @Published private(set) var loadState: LocalLoadState = .loading
     @Published private(set) var importState: ImportState = .idle
+    @Published private(set) var isDeletingHistory = false
     @Published var section: AppSection = .today
     @Published var selectedDate = Date()
     @Published var typeFilter: ActivityRecordType?
@@ -102,7 +103,9 @@ final class ActivityStore: ObservableObject {
     }
 
     func synchronize() async {
-        guard !importState.isImporting, importState.canImport else { return }
+        guard !isDeletingHistory,
+              !importState.isImporting,
+              importState.canImport else { return }
         importState = .importing
         do {
             _ = try await importer.synchronize()
@@ -118,6 +121,9 @@ final class ActivityStore: ObservableObject {
     }
 
     func deleteLocalHistory() async {
+        guard canDeleteLocalHistory else { return }
+        isDeletingHistory = true
+        defer { isDeletingHistory = false }
         localReloadToken = UUID()
         await cancelAI()
         do {
@@ -138,6 +144,10 @@ final class ActivityStore: ObservableObject {
                 fallback: "Local history could not be deleted: %@",
                 Self.message(error)))
         }
+    }
+
+    var canDeleteLocalHistory: Bool {
+        !importState.isImporting && !isDeletingHistory
     }
 
     func selectDay(_ day: Date) {
