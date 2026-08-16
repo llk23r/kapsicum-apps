@@ -38,6 +38,7 @@ final class ActivityStore: ObservableObject {
     private var activeRunThreadID: UUID?
     private var aiRequestToken = UUID()
     private var chatLoadToken = UUID()
+    private var localReloadToken = UUID()
     private let maximumConcurrentThumbnails = 3
     private let maximumCachedThumbnails = 24
     private var activeThumbnailLoads = 0
@@ -65,18 +66,28 @@ final class ActivityStore: ObservableObject {
     }
 
     func reloadLocal() async {
+        let token = UUID()
+        localReloadToken = token
+        let range = visibleRange
+        let densityRange = monthRange
+        let recordType = typeFilter
+        let sourceApp = sourceAppFilter
+        let search = section == .search ? searchText : nil
+        let limit = section == .search ? 300 : 700
         do {
-            let range = visibleRange
             async let localRecords = database.records(
-                from: range.start, to: range.end, type: typeFilter,
-                sourceApp: sourceAppFilter,
-                search: section == .search ? searchText : nil,
-                limit: section == .search ? 300 : 700)
+                from: range.start, to: range.end, type: recordType,
+                sourceApp: sourceApp,
+                search: search,
+                limit: limit)
             async let localSourceApps = database.sourceApps()
-            async let localDensity = database.density(from: monthRange.start, to: monthRange.end)
+            async let localDensity = database.density(
+                from: densityRange.start,
+                to: densityRange.end)
             async let localHistory = database.historyStatus()
             async let mediaBytes = media.diskBytes()
             let (newRecords, newSourceApps, newDensity, status, bytes) = try await (localRecords, localSourceApps, localDensity, localHistory, mediaBytes)
+            guard localReloadToken == token else { return }
             records = newRecords
             sourceApps = newSourceApps
             reconcileBrowserSelection(in: newRecords)
@@ -85,6 +96,7 @@ final class ActivityStore: ObservableObject {
             selectedIDs.formIntersection(Set(newRecords.map(\.id)))
             loadState = .ready
         } catch {
+            guard localReloadToken == token else { return }
             loadState = .failed(Self.message(error))
         }
     }
@@ -106,6 +118,7 @@ final class ActivityStore: ObservableObject {
     }
 
     func deleteLocalHistory() async {
+        localReloadToken = UUID()
         await cancelAI()
         do {
             try await database.deleteAllHistory()

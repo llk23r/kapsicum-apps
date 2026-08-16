@@ -65,12 +65,8 @@ actor ImportCoordinator {
         let orphaned = try await database.enforceRetention()
         try await media.delete(relativePaths: orphaned)
         let gap = gaps.isEmpty ? nil : gaps.joined(separator: " ")
-        let previousEnd = prior.coverageEnd ?? prior.lastSuccessfulImport
-        let hasNewCoverageRecord = previousEnd.map { boundary in
-            deduplicated.contains { $0.timestamp > boundary }
-        } ?? false
         let isContiguous = prior.lastSuccessfulImport.map { $0 >= liveStart } ?? false
-        let mayClearPriorGap = prior.gapMessage != nil && gap == nil && isContiguous && hasNewCoverageRecord
+        let mayClearPriorGap = prior.gapMessage != nil && gap == nil && isContiguous
         // Records beyond an incomplete slice are still useful, but they are
         // not proof of contiguous coverage. Keep the cursor at the earliest
         // unresolved boundary so the next synchronization retries that slice.
