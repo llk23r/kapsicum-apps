@@ -45,6 +45,7 @@ final class ActivityStore: ObservableObject {
     private var activeThumbnailLoads = 0
     private var pendingThumbnails: [ActivityRecord] = []
     private var thumbnailOrder: [String] = []
+    private var thumbnailLoadToken = UUID()
     private var browserImageTask: Task<Void, Never>?
     private var sourceBrowserToken = UUID()
     private var sourceBrowserRequest: (ids: [String], selectedOrdinal: Int?)?
@@ -156,6 +157,7 @@ final class ActivityStore: ObservableObject {
     private func clearDeletedLocalHistoryProjection() {
         records.removeAll(); sourceApps.removeAll(); density.removeAll()
         history = .empty; loadState = .ready
+        thumbnailLoadToken = UUID(); activeThumbnailLoads = 0
         thumbnails.removeAll(); thumbnailOrder.removeAll(); pendingThumbnails.removeAll()
         inspectedRecord = nil; inspectorImage = nil; selectedIDs.removeAll()
         browserImageTask?.cancel(); browserImageTask = nil
@@ -520,11 +522,13 @@ final class ActivityStore: ObservableObject {
 
     private func beginThumbnail(_ record: ActivityRecord) {
         guard let hash = record.archiveHash, let path = record.mediaPath else { return }
+        let token = thumbnailLoadToken
         activeThumbnailLoads += 1
         Task { [media] in
             let result: LocalImageState
             do { result = .loaded(try await media.thumbnail(relativePath: path)) }
             catch { result = .failed(Self.message(error)) }
+            guard thumbnailLoadToken == token else { return }
             activeThumbnailLoads = max(0, activeThumbnailLoads - 1)
             thumbnails[hash] = result
             if case .loaded = result {
