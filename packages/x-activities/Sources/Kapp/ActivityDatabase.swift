@@ -332,6 +332,15 @@ actor ActivityDatabase {
         return hashes
     }
 
+    func missingScreenshotCount() throws -> Int {
+        try openIfNeeded()
+        return try scalarInt("""
+            SELECT COUNT(DISTINCT a.archive_hash) FROM activity a
+            LEFT JOIN media m ON m.archive_hash=a.archive_hash
+            WHERE a.content_kind='screenshots' AND a.archive_hash IS NOT NULL AND m.archive_hash IS NULL
+            """)
+    }
+
     func enforceRetention() throws -> [String] {
         try openIfNeeded()
         var orphanPaths: [String] = []

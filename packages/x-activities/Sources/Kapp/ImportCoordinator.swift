@@ -50,20 +50,23 @@ actor ImportCoordinator {
             offset = end
         }
 
+        let missingScreenshotCount = try await database.missingScreenshotCount()
         let hashes = try await database.missingScreenshotHashes(limit: 100)
         let mediaResult = await fetchMissingMedia(hashes)
         for stored in mediaResult.media { try await database.upsertMedia(stored, storedAt: now) }
-        if mediaResult.failures > 0 {
-            let key = mediaResult.failures == 1
+        let deferredScreenshotCount = max(0, missingScreenshotCount - hashes.count)
+        let incompleteScreenshotCount = mediaResult.failures + deferredScreenshotCount
+        if incompleteScreenshotCount > 0 {
+            let key = incompleteScreenshotCount == 1
                 ? "import.gap.screenshot.one"
                 : "import.gap.screenshot.many"
-            let fallback = mediaResult.failures == 1
+            let fallback = incompleteScreenshotCount == 1
                 ? "%lld screenshot could not be cached locally; retry import to complete it."
                 : "%lld screenshots could not be cached locally; retry import to complete them."
             retryableGaps.append(L10n.format(
                 key,
                 fallback: fallback,
-                Int64(mediaResult.failures)))
+                Int64(incompleteScreenshotCount)))
         }
         let orphaned = try await database.enforceRetention()
         try await media.delete(relativePaths: orphaned)
