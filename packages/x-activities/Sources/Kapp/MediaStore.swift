@@ -5,6 +5,10 @@ import ImageIO
 actor MediaStore {
     private var rootURL: URL?
 
+    init(rootURL: URL? = nil) {
+        self.rootURL = rootURL
+    }
+
     func persist(_ screenshot: StoredScreenshot) throws -> StoredMedia {
         let root = try root()
         let mediaDirectory = root.appendingPathComponent("Media", isDirectory: true)
@@ -52,11 +56,27 @@ actor MediaStore {
         }.value
     }
 
-    func delete(relativePaths: [String]) throws {
-        for path in relativePaths.prefix(StoragePolicy.maximumRecordCount) {
-            let url = try validatedURL(path)
-            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+    func delete(relativePaths: [String]) -> MediaDeletionOutcome {
+        var removed: [String] = []
+        var remaining: [String] = []
+        var seen = Set<String>()
+        for path in relativePaths {
+            guard seen.insert(path).inserted else { continue }
+            if removed.count + remaining.count >= StoragePolicy.maximumRecordCount {
+                remaining.append(path)
+                continue
+            }
+            do {
+                let url = try validatedURL(path)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
+                }
+                removed.append(path)
+            } catch {
+                remaining.append(path)
+            }
         }
+        return MediaDeletionOutcome(removed: removed, remaining: remaining)
     }
 
     func deleteAllMedia() throws {
@@ -95,6 +115,11 @@ actor MediaStore {
     private func safeFilename(_ hash: String) -> String {
         Data(hash.utf8).base64EncodedString().replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "=", with: "")
     }
+}
+
+struct MediaDeletionOutcome: Sendable {
+    let removed: [String]
+    let remaining: [String]
 }
 
 enum MediaError: LocalizedError {

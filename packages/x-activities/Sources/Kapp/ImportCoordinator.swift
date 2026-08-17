@@ -68,8 +68,9 @@ actor ImportCoordinator {
                 fallback: fallback,
                 Int64(incompleteScreenshotCount)))
         }
-        let orphaned = try await database.enforceRetention()
-        try await media.delete(relativePaths: orphaned)
+        let pendingCleanup = try await database.enforceRetention()
+        let cleanup = await media.delete(relativePaths: pendingCleanup)
+        try await database.acknowledgeMediaCleanup(cleanup.removed)
         let retryableGap = retryableGaps.isEmpty ? nil : retryableGaps.joined(separator: " ")
         let isContiguous = prior.lastSuccessfulImport.map { $0 >= liveStart } ?? false
         let mayClearPriorRetryableGap = prior.hasRetryableGap && retryableGap == nil && isContiguous

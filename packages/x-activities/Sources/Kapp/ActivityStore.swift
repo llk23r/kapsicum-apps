@@ -61,6 +61,7 @@ final class ActivityStore: ObservableObject {
     func start() async {
         guard !started else { return }
         started = true
+        await retryPendingMediaCleanup()
         await reloadLocal()
         await loadMostRecentChat()
         isInitialized = true
@@ -139,6 +140,7 @@ final class ActivityStore: ObservableObject {
         clearDeletedLocalHistoryProjection()
         do {
             try await media.deleteAllMedia()
+            try await database.clearPendingMediaCleanup()
         } catch {
             await reloadLocal()
             importState = .failed(L10n.format(
@@ -148,6 +150,13 @@ final class ActivityStore: ObservableObject {
             return
         }
         await reloadLocal()
+    }
+
+    private func retryPendingMediaCleanup() async {
+        guard let pending = try? await database.pendingMediaCleanupPaths(),
+              !pending.isEmpty else { return }
+        let cleanup = await media.delete(relativePaths: pending)
+        try? await database.acknowledgeMediaCleanup(cleanup.removed)
     }
 
     var canDeleteLocalHistory: Bool {

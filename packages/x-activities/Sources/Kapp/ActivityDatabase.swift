@@ -4,7 +4,12 @@ import SQLite3
 actor ActivityDatabase {
     private var connection: OpaquePointer?
     private var databaseURL: URL?
+    private let configuredDatabaseURL: URL?
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
+    init(databaseURL: URL? = nil) {
+        self.configuredDatabaseURL = databaseURL
+    }
 
     func upsert(_ hits: [MemoryHit], ingestedAt: Date) throws {
         try openIfNeeded()
@@ -57,23 +62,28 @@ actor ActivityDatabase {
 
     func upsertMedia(_ media: StoredMedia, storedAt: Date) throws {
         try openIfNeeded()
-        let statement = try prepare("""
-            INSERT INTO media(archive_hash, relative_path, mime_type, pixel_width, pixel_height, byte_count, stored_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(archive_hash) DO UPDATE SET
-              relative_path=excluded.relative_path, mime_type=excluded.mime_type,
-              pixel_width=excluded.pixel_width, pixel_height=excluded.pixel_height,
-              byte_count=excluded.byte_count, stored_at=excluded.stored_at
-            """)
-        defer { sqlite3_finalize(statement) }
-        bind(media.archiveHash, to: statement, at: 1)
-        bind(media.relativePath, to: statement, at: 2)
-        bind(media.mimeType, to: statement, at: 3)
-        sqlite3_bind_int64(statement, 4, Int64(media.pixelWidth))
-        sqlite3_bind_int64(statement, 5, Int64(media.pixelHeight))
-        sqlite3_bind_int64(statement, 6, Int64(media.byteCount))
-        sqlite3_bind_double(statement, 7, storedAt.timeIntervalSince1970)
-        try stepDone(statement)
+        try transaction {
+            let statement = try prepare("""
+                INSERT INTO media(archive_hash, relative_path, mime_type, pixel_width, pixel_height, byte_count, stored_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(archive_hash) DO UPDATE SET
+                  relative_path=excluded.relative_path, mime_type=excluded.mime_type,
+                  pixel_width=excluded.pixel_width, pixel_height=excluded.pixel_height,
+                  byte_count=excluded.byte_count, stored_at=excluded.stored_at
+                """)
+            defer { sqlite3_finalize(statement) }
+            bind(media.archiveHash, to: statement, at: 1)
+            bind(media.relativePath, to: statement, at: 2)
+            bind(media.mimeType, to: statement, at: 3)
+            sqlite3_bind_int64(statement, 4, Int64(media.pixelWidth))
+            sqlite3_bind_int64(statement, 5, Int64(media.pixelHeight))
+            sqlite3_bind_int64(statement, 6, Int64(media.byteCount))
+            sqlite3_bind_double(statement, 7, storedAt.timeIntervalSince1970)
+            try stepDone(statement)
+            // A newly stored file is the live owner of this path, so any leftover
+            // cleanup intent for it must not delete the replacement.
+            try acknowledgeMediaCleanup([media.relativePath])
+        }
     }
 
     func records(
@@ -343,7 +353,6 @@ actor ActivityDatabase {
 
     func enforceRetention() throws -> [String] {
         try openIfNeeded()
-        var orphanPaths: [String] = []
         try transaction {
             let excess = max(0, try scalarInt("SELECT COUNT(*) FROM activity") - StoragePolicy.maximumRecordCount)
             if excess > 0 {
@@ -356,15 +365,43 @@ actor ActivityDatabase {
                     sqlite3_reset(deleteActivity); bind(id, to: deleteActivity, at: 1); try stepDone(deleteActivity)
                 }
             }
-            orphanPaths = try stringColumn("SELECT relative_path FROM media WHERE archive_hash NOT IN (SELECT archive_hash FROM activity WHERE archive_hash IS NOT NULL)")
+            let orphanPaths = try stringColumn("SELECT relative_path FROM media WHERE archive_hash NOT IN (SELECT archive_hash FROM activity WHERE archive_hash IS NOT NULL)")
+            try enqueuePendingMediaCleanup(orphanPaths)
             try execute("DELETE FROM media WHERE archive_hash NOT IN (SELECT archive_hash FROM activity WHERE archive_hash IS NOT NULL)")
         }
-        return orphanPaths
+        return try pendingMediaCleanupPaths()
+    }
+
+    func pendingMediaCleanupPaths() throws -> [String] {
+        try openIfNeeded()
+        return try stringColumn("""
+            SELECT p.relative_path FROM pending_media_cleanup p
+            WHERE p.relative_path NOT IN (SELECT relative_path FROM media)
+            ORDER BY p.enqueued_at ASC
+            """)
+    }
+
+    func acknowledgeMediaCleanup(_ paths: [String]) throws {
+        try openIfNeeded()
+        guard !paths.isEmpty else { return }
+        let statement = try prepare("DELETE FROM pending_media_cleanup WHERE relative_path=?")
+        defer { sqlite3_finalize(statement) }
+        for path in paths {
+            sqlite3_reset(statement); sqlite3_clear_bindings(statement)
+            bind(path, to: statement, at: 1)
+            try stepDone(statement)
+        }
+    }
+
+    func clearPendingMediaCleanup() throws {
+        try openIfNeeded()
+        try execute("DELETE FROM pending_media_cleanup")
     }
 
     func deleteAllHistory() throws {
         try openIfNeeded()
         try transaction {
+            try enqueuePendingMediaCleanup(try stringColumn("SELECT relative_path FROM media"))
             try execute("DELETE FROM chat_threads")
             try execute("DELETE FROM activity_fts")
             try execute("DELETE FROM activity")
@@ -378,7 +415,7 @@ actor ActivityDatabase {
         let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let root = support.appendingPathComponent("KappData", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let url = root.appendingPathComponent("xactivity.sqlite")
+        let url = configuredDatabaseURL ?? root.appendingPathComponent("xactivity.sqlite")
         var handle: OpaquePointer?
         guard sqlite3_open_v2(url.path, &handle, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
               let handle else {
@@ -465,6 +502,32 @@ actor ActivityDatabase {
                     """)
                 try execute("PRAGMA user_version=3")
             }
+        }
+        if version < 4 {
+            try transaction {
+                try execute("""
+                    CREATE TABLE pending_media_cleanup(
+                      relative_path TEXT PRIMARY KEY,
+                      enqueued_at REAL NOT NULL)
+                    """)
+                try execute("PRAGMA user_version=4")
+            }
+        }
+    }
+
+    private func enqueuePendingMediaCleanup(_ paths: [String]) throws {
+        guard !paths.isEmpty else { return }
+        let statement = try prepare("""
+            INSERT OR IGNORE INTO pending_media_cleanup(relative_path, enqueued_at)
+            VALUES (?, ?)
+            """)
+        defer { sqlite3_finalize(statement) }
+        let enqueuedAt = Date().timeIntervalSince1970
+        for path in paths {
+            sqlite3_reset(statement); sqlite3_clear_bindings(statement)
+            bind(path, to: statement, at: 1)
+            sqlite3_bind_double(statement, 2, enqueuedAt)
+            try stepDone(statement)
         }
     }
 
