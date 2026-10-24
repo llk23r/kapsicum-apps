@@ -1,0 +1,1 @@
+../../../../packages/x-activities/Sources/Kapp/L10n.swift
