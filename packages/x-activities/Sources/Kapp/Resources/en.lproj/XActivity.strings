@@ -142,3 +142,14 @@
 "help.next_screenshot" = "Next screenshot";
 "help.open_saved_chat" = "Open a saved chat";
 "help.new_fixed_scope_chat" = "Start a chat with a new fixed scope";
+
+"xactivity.output.label" = "Output";
+"xactivity.output.answer" = "Answer";
+"xactivity.output.html" = "HTML report";
+"xactivity.report.coverage" = "Based on %d supplied captures from %@. Other captures in the period were not supplied.";
+"xactivity.report.sources" = "Supplied sources";
+"xactivity.report.saved" = "HTML report saved.";
+"xactivity.report.open" = "Open HTML report";
+"xactivity.report.invalid_response" = "The AI did not return a usable report. Please try again.";
+"xactivity.report.cleanup_failed" = "The chat was saved, but old report files could not be cleaned up.";
+"xactivity.ai.cancel_unconfirmed" = "Cancellation could not be confirmed. Press Cancel to retry.";

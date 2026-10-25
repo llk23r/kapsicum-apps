@@ -21,6 +21,7 @@ final class ActivityStore: ObservableObject {
     @Published var chat: [ChatMessage] = []
     @Published private(set) var chatThreads: [ChatThread] = []
     @Published private(set) var activeThread: ChatThread?
+    @Published var wantsHTMLReport = false
     @Published var isAsking = false
     @Published var aiError: String?
     @Published private(set) var thumbnails: [String: LocalImageState] = [:]
@@ -35,6 +36,10 @@ final class ActivityStore: ObservableObject {
     private let media: MediaStore
     private let importer: ImportCoordinator
     private var started = false
+    private var chatWrites: [UUID: Task<Void, Error>] = [:]
+    private var chatRefreshToken = UUID()
+    private let waitForAIPoll: @Sendable () async throws -> Void
+    private var pendingAIStart: Task<UUID, Error>?
     private var activeRunID: UUID?
     private var activeRunThreadID: UUID?
     private var aiRequestToken = UUID()
@@ -50,7 +55,8 @@ final class ActivityStore: ObservableObject {
     private var sourceBrowserToken = UUID()
     private var sourceBrowserRequest: (ids: [String], selectedOrdinal: Int?)?
 
-    init() {
+    init(waitForAIPoll: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(1)) }) {
+        self.waitForAIPoll = waitForAIPoll
         let database = ActivityDatabase()
         let media = MediaStore()
         self.database = database
@@ -127,7 +133,10 @@ final class ActivityStore: ObservableObject {
         isDeletingHistory = true
         defer { isDeletingHistory = false }
         localReloadToken = UUID()
+        chatLoadToken = UUID(); chatRefreshToken = UUID(); sourceBrowserToken = UUID()
         await cancelAI()
+        for write in Array(chatWrites.values) { _ = await write.result }
+        guard !isAsking else { return }
         do {
             try await database.deleteAllHistory()
         } catch {
@@ -260,6 +269,7 @@ final class ActivityStore: ObservableObject {
     func closeInspection() { inspectedRecord = nil; inspectorImage = nil }
 
     func showCitedSources(_ sourceIDs: [String], selectedOrdinal: Int? = nil) {
+        guard !isDeletingHistory else { return }
         let ids = Array(sourceIDs.prefix(24))
         guard !ids.isEmpty else { return }
         let boundedOrdinal = selectedOrdinal.flatMap { ids.indices.contains($0 - 1) ? $0 : nil }
@@ -326,7 +336,8 @@ final class ActivityStore: ObservableObject {
 
     func ask(_ question: String) async {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isAsking else { return }
+        guard !isDeletingHistory, !trimmed.isEmpty, !isAsking else { return }
+        let requiresHTMLReport = wantsHTMLReport
         let prior = chat.suffix(10).map { KappAITextTurn(role: $0.role == .user ? .user : .assistant, text: $0.text) }
         let requestToken = UUID()
         aiRequestToken = requestToken
@@ -354,59 +365,89 @@ final class ActivityStore: ObservableObject {
             let sourceIDs = sources.map(\.id)
             let userMessage = ChatMessage(role: .user, text: trimmed, sourceIDs: sourceIDs)
             if isNewThread {
-                try await database.createChatThread(thread, firstMessage: userMessage)
+                try await writeChat { [database] in try await database.createChatThread(thread, firstMessage: userMessage) }
                 guard aiRequestToken == requestToken else { return }
                 activeThread = thread
             } else {
-                try await database.appendChatMessage(userMessage, threadID: thread.id)
+                try await writeChat { [database] in try await database.appendChatMessage(userMessage, threadID: thread.id) }
             }
             guard aiRequestToken == requestToken else { return }
             chat.append(userMessage)
             chat = Array(chat.suffix(50))
             await refreshChatThreads()
+            guard aiRequestToken == requestToken else { return }
 
             let context = sources.enumerated().map { index, item in
                 "[Source \(index + 1)] id=\(item.id), time=\(item.occurredAt.formatted(.iso8601)), content_kind=\(item.type.contentKind), app=\(item.sourceApp ?? "Unknown"), provenance=\(item.domain ?? item.pageURL ?? item.method ?? "local history")\n\(item.snippet)"
             }.joined(separator: "\n\n")
             let prompt = """
-            Answer using only the supplied local x.com activity. Cite claims inline as [Source N]. If the sources do not establish an answer, say so. Never invent a source.
+            Answer using only these \(sources.count) supplied local x.com captures from \(localizedChatScopeLabel(for: thread.scope)). They are a bounded sample, not the complete period. Cite claims inline as [Source N]. If the sources do not establish an answer, say so. Never invent a source.
+            \(HTMLReportResponse.promptContract)
+            Required output kind for this request: \(requiresHTMLReport ? "html" : "text"). Return exactly this kind. The app-selected kind overrides prior turns.
 
             User question: \(trimmed)
 
             Sources:
             \(context)
             """
-            let runID = try await KapsicumAI.start(KappAIRequest(conversationID: thread.id, prompt: prompt, priorTurns: prior))
-            activeRunID = runID
-            activeRunThreadID = thread.id
-            guard aiRequestToken == requestToken else {
-                do { try await KapsicumAI.cancel(runID: runID) } catch {}
-                activeRunID = nil; activeRunThreadID = nil
-                return
-            }
-            try await poll(runID: runID, threadID: thread.id, requestToken: requestToken, sourceIDs: sourceIDs)
+            let starting = Task { try await KapsicumAI.start(KappAIRequest(conversationID: thread.id, prompt: prompt, priorTurns: prior)) }
+            pendingAIStart = starting
+            let runID = try await starting.value
+            // A concurrent Stop owns this start result until teardown is acknowledged.
+            guard aiRequestToken == requestToken else { return }
+            pendingAIStart = nil
+            activeRunID = runID; activeRunThreadID = thread.id
+            try await poll(runID: runID, threadID: thread.id, requestToken: requestToken, sources: sources, scopeLabel: localizedChatScopeLabel(for: thread.scope), requiresHTMLReport: requiresHTMLReport)
         } catch is CancellationError {
             if aiRequestToken == requestToken { await cancelAI() }
         } catch {
             guard aiRequestToken == requestToken else { return }
-            activeRunID = nil; activeRunThreadID = nil; isAsking = false; aiError = Self.message(error)
+            aiError = Self.message(error)
+            if activeRunID != nil { await cancelAI() }
+            else { pendingAIStart = nil; isAsking = false }
         }
     }
 
     func cancelAI() async {
-        aiRequestToken = UUID()
-        guard let runID = activeRunID else { isAsking = false; return }
-        do { try await KapsicumAI.cancel(runID: runID) }
-        catch {
-            aiError = L10n.string(
-                "error.chat.cancel_unconfirmed",
-                fallback: "The request stopped locally, but cancellation could not be confirmed.")
+        let token = UUID(); aiRequestToken = token
+        let starting = pendingAIStart
+        var runID = activeRunID
+        do {
+            if runID == nil { runID = try await starting?.value }
+            guard aiRequestToken == token else { return }
+            if let runID {
+                activeRunID = runID
+                try await KapsicumAI.cancel(runID: runID)
+            }
+            guard aiRequestToken == token else { return }
+            pendingAIStart = nil; activeRunID = nil; activeRunThreadID = nil; isAsking = false
+            if aiError == Self.cancellationUnconfirmedMessage { aiError = nil }
+        } catch {
+            guard aiRequestToken == token else { return }
+            // These runtime failures close the channel; the host tears down its owned run.
+            if runID == nil || Self.runtimeChannelClosed(error) {
+                pendingAIStart = nil; activeRunID = nil; activeRunThreadID = nil; isAsking = false
+            } else {
+                isAsking = true
+                aiError = Self.cancellationUnconfirmedMessage
+            }
         }
-        activeRunID = nil; activeRunThreadID = nil; isAsking = false
+    }
+
+    private static var cancellationUnconfirmedMessage: String {
+        L10n.string("xactivity.ai.cancel_unconfirmed", fallback: "Cancellation could not be confirmed. Press Cancel to retry.")
+    }
+
+    nonisolated private static func runtimeChannelClosed(_ error: Error) -> Bool {
+        guard let error = error as? KapsicumRuntimeError else { return false }
+        switch error {
+        case .unavailable, .invalidResponse, .timedOut: return true
+        case .accessNotGranted, .requestFailed: return false
+        }
     }
 
     func beginNewChat() {
-        guard !isAsking else { return }
+        guard !isDeletingHistory, !isAsking else { return }
         closeSourceBrowser()
         chatLoadToken = UUID()
         activeThread = nil
@@ -415,7 +456,7 @@ final class ActivityStore: ObservableObject {
     }
 
     func openChatThread(_ id: UUID) async {
-        guard !isAsking else { return }
+        guard !isDeletingHistory, !isAsking else { return }
         closeSourceBrowser()
         let token = UUID()
         chatLoadToken = token
@@ -564,23 +605,52 @@ final class ActivityStore: ObservableObject {
         selectBrowserScreenshot(first)
     }
 
-    private func poll(runID: UUID, threadID: UUID, requestToken: UUID, sourceIDs: [String]) async throws {
-        for _ in 0..<120 {
+    private func poll(runID: UUID, threadID: UUID, requestToken: UUID, sources: [ActivityRecord], scopeLabel: String, requiresHTMLReport: Bool) async throws {
+        while true {
             try Task.checkCancellation()
             guard aiRequestToken == requestToken else { return }
             let status = try await KapsicumAI.status(runID: runID)
+            guard aiRequestToken == requestToken else { return }
             switch status.state {
-            case .running: try await Task.sleep(for: .seconds(1))
+            case .running: try await waitForAIPoll()
             case .succeeded:
                 guard activeRunID == runID, activeRunThreadID == threadID, aiRequestToken == requestToken else { return }
-                let message = ChatMessage(
-                    role: .assistant,
-                    text: status.answer ?? L10n.string(
-                        "error.chat.empty_answer",
-                        fallback: "Kapsicum returned an empty answer."),
-                    sourceIDs: sourceIDs)
-                try await database.appendChatMessage(message, threadID: threadID)
-                guard activeRunID == runID, activeRunThreadID == threadID, aiRequestToken == requestToken else { return }
+                // The host run is terminal. Local persistence still owns a registered write.
+                activeRunID = nil; activeRunThreadID = nil
+                let coverage = L10n.format("xactivity.report.coverage", fallback: "Based on %d supplied captures from %@. Other captures in the period were not supplied.", sources.count, scopeLabel)
+                let sourcesHeading = L10n.string("xactivity.report.sources", fallback: "Supplied sources")
+                let answer = status.answer ?? ""
+                let payload: (String?, Data?) = try await Task.detached {
+                    switch try HTMLReportResponse.parse(answer) {
+                    case .text(let text):
+                        guard !requiresHTMLReport else { throw HTMLReportError.invalidResponse }
+                        return (text, nil)
+                    case .html(let report):
+                        guard requiresHTMLReport else { throw HTMLReportError.invalidResponse }
+                        return (nil, try report.render(sources: sources, coverage: coverage, sourcesHeading: sourcesHeading))
+                    }
+                }.value
+                try Task.checkCancellation()
+                guard aiRequestToken == requestToken else { return }
+                let id = UUID()
+                let saved = L10n.string("xactivity.report.saved", fallback: "HTML report saved.")
+                let open = L10n.string("xactivity.report.open", fallback: "Open HTML report")
+                let message = try await writeChat { [database, media] in
+                    let text: String
+                    if let data = payload.1 {
+                        let url = try await media.storeReport(data: data, messageID: id)
+                        text = "\(saved)\n\n[\(open)](\(url.absoluteString))\n\n\(coverage)"
+                    } else { text = payload.0 ?? "" }
+                    let message = ChatMessage(id: id, role: .assistant, text: text, sourceIDs: sources.map(\.id))
+                    do { try await database.appendChatMessage(message, threadID: threadID) }
+                    catch {
+                        if payload.1 != nil { try await media.removeReport(messageID: id) }
+                        throw error
+                    }
+                    return message
+                }
+                try Task.checkCancellation()
+                guard aiRequestToken == requestToken else { return }
                 if activeThread?.id == threadID {
                     chat.append(message)
                     chat = Array(chat.suffix(50))
@@ -589,15 +659,11 @@ final class ActivityStore: ObservableObject {
                 await refreshChatThreads()
                 return
             case .failed:
-                throw KapsicumRuntimeError.requestFailed(
-                    status.errorCode ?? L10n.string(
-                        "error.chat.request_failed",
-                        fallback: "The AI request failed."))
+                activeRunID = nil; activeRunThreadID = nil; isAsking = false
+                throw KapsicumRuntimeError.requestFailed(status.errorCode ?? L10n.string("error.chat.request_failed", fallback: "The AI request failed."))
             case .cancelled: activeRunID = nil; activeRunThreadID = nil; isAsking = false; return
             }
         }
-        try await KapsicumAI.cancel(runID: runID); activeRunID = nil; activeRunThreadID = nil; isAsking = false
-        throw KapsicumRuntimeError.timedOut
     }
 
     private var currentChatScope: ChatScope {
@@ -659,6 +725,7 @@ final class ActivityStore: ObservableObject {
     }
 
     private func loadMostRecentChat() async {
+        guard !isDeletingHistory else { return }
         let token = UUID()
         chatLoadToken = token
         do {
@@ -679,16 +746,41 @@ final class ActivityStore: ObservableObject {
     }
 
     private func refreshChatThreads() async {
+        guard !isDeletingHistory else { return }
+        let token = UUID(); chatRefreshToken = token
+        let loadToken = chatLoadToken
         do {
             let threads = try await database.recentChatThreads(limit: 50)
+            guard chatRefreshToken == token, chatLoadToken == loadToken else { return }
             chatThreads = threads
             if let id = activeThread?.id, let updated = threads.first(where: { $0.id == id }) { activeThread = updated }
         } catch {
+            guard chatRefreshToken == token, chatLoadToken == loadToken else { return }
             aiError = L10n.format(
                 "error.chat.refresh",
                 fallback: "Chat history could not be refreshed: %@",
                 Self.message(error))
         }
+    }
+
+    private func writeChat<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        let id = UUID(), token = aiRequestToken, predecessors = Array(chatWrites.values)
+        let task = Task { [database, media] in
+            // Serialize file commits and retention snapshots, including writes finishing after Stop.
+            for predecessor in predecessors { _ = try? await predecessor.value }
+            let result = try await operation()
+            var cleanupFailed = false
+            do { try await media.pruneReports(retaining: try await database.retainedChatMessageIDs()) }
+            catch { cleanupFailed = true }
+            return (result, cleanupFailed)
+        }
+        chatWrites[id] = Task { _ = try await task.value }
+        defer { chatWrites[id] = nil }
+        let (result, cleanupFailed) = try await task.value
+        if cleanupFailed, aiRequestToken == token, !isDeletingHistory {
+            aiError = L10n.string("xactivity.report.cleanup_failed", fallback: "The chat was saved, but old report files could not be cleaned up.")
+        }
+        return result
     }
 
     nonisolated private static func chatTitle(_ question: String) -> String {

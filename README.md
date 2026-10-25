@@ -2,7 +2,7 @@
 
 This repository is the public, static source catalogue for Kapps. A Kapp is reviewed and built from source on the recipient's Mac; this repository does not distribute executable binaries, grant access, or certify publishers.
 
-The first Included Kapp is [xactivity](packages/x-activities), a private local journal built from approved x.com captures. Its checked-in portable source ZIP is [xactivity-0.2.10.zip](releases/xactivity-0.2.10.zip), and `catalogue.json` pins both the ZIP SHA-256 and Kapsicum's canonical source digest. Prior release ZIPs remain available for explicit update and restore flows.
+The first Included Kapp is [xactivity](packages/x-activities), a private local journal built from approved x.com captures. Its checked-in portable source ZIP is [xactivity-0.2.11.zip](releases/xactivity-0.2.11.zip), and `catalogue.json` pins both the ZIP SHA-256 and Kapsicum's canonical source digest. Prior release ZIPs remain available for explicit update and restore flows.
 
 ## One portable source contract
 
@@ -38,4 +38,4 @@ CI is intentionally deferred because of current billing constraints. The validat
 
 Catalogue listing is discovery metadata, not trust. Digests prove that the reviewed bytes match the catalogue entry; they do not prove that the source is safe or that a publisher is trustworthy. Kapsicum still validates the portable tree, presents requested access and AI use, builds locally, and keeps every grant and all user data on the receiving Mac.
 
-The app deliberately has no remote catalogue refresh today. The bundled catalogue remains available offline, and repository downloads enter the ordinary ZIP importer. A future optional refresh is appropriate only when catalogue scale or release cadence creates demonstrated freshness needs; it must retain the bundled fallback, validate the same metadata and digests, cache only a last-valid catalogue, and use the same importer without adding authority.
+Discover can read the current public catalogue, with the last valid cache and bundled Included snapshot as offline fallbacks. Catalogue entries and downloaded source ZIPs use the same digest checks, importer, local build, and access review. Publishing a catalogue release does not automatically replace an installed Kapp; the person chooses whether to install or update it.
