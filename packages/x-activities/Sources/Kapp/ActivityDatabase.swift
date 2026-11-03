@@ -166,6 +166,20 @@ actor ActivityDatabase {
         return threads
     }
 
+    func retainedChatMessageIDs() throws -> Set<UUID> {
+        try openIfNeeded()
+        let statement = try prepare("SELECT id FROM chat_messages")
+        defer { sqlite3_finalize(statement) }
+        var ids: Set<UUID> = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            if let raw = text(statement, 0), let id = UUID(uuidString: raw) { ids.insert(id) }
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw lastError() }
+        return ids
+    }
+
     func chatThread(id: UUID) throws -> (ChatThread, [ChatMessage])? {
         try openIfNeeded()
         let threadStatement = try prepare("""

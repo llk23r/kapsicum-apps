@@ -9,6 +9,41 @@ actor MediaStore {
         self.rootURL = rootURL
     }
 
+    func storeReport(data: Data, messageID: UUID) throws -> URL {
+        guard !data.isEmpty, data.count <= 128 * 1024 else { throw HTMLReportError.invalidResponse }
+        let directory = try reportDirectory()
+        let destination = directory.appendingPathComponent(messageID.uuidString + ".html")
+        guard !FileManager.default.fileExists(atPath: destination.path) else { throw MediaError.invalidPath }
+        try data.write(to: destination, options: [.atomic])
+        do { try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path) }
+        catch { try? FileManager.default.removeItem(at: destination); throw error }
+        return destination
+    }
+
+    func removeReport(messageID: UUID) throws {
+        let file = try reportDirectory().appendingPathComponent(messageID.uuidString + ".html")
+        if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+    }
+
+    func pruneReports(retaining messageIDs: Set<UUID>) throws {
+        let directory = try reportDirectory()
+        for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
+            let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true, file.pathExtension == "html", let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent), !messageIDs.contains(id) else { continue }
+            try FileManager.default.removeItem(at: file)
+        }
+    }
+
+    private func reportDirectory() throws -> URL {
+        let root = try root().resolvingSymlinksInPath()
+        let media = root.appendingPathComponent("Media", isDirectory: true)
+        let directory = media.appendingPathComponent("Reports", isDirectory: true)
+        guard media.resolvingSymlinksInPath().path == media.path, directory.resolvingSymlinksInPath().path == directory.path else { throw MediaError.invalidPath }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        guard directory.resolvingSymlinksInPath().path == directory.path else { throw MediaError.invalidPath }
+        return directory
+    }
+
     func persist(_ screenshot: StoredScreenshot) throws -> StoredMedia {
         let root = try root()
         let mediaDirectory = root.appendingPathComponent("Media", isDirectory: true)

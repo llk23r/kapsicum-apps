@@ -142,3 +142,14 @@
 "help.next_screenshot" = "Capture d’écran suivante";
 "help.open_saved_chat" = "Ouvrir une discussion enregistrée";
 "help.new_fixed_scope_chat" = "Démarrer une discussion avec un nouveau périmètre fixe";
+
+"xactivity.output.label" = "Sortie";
+"xactivity.output.answer" = "Réponse";
+"xactivity.output.html" = "Rapport HTML";
+"xactivity.report.coverage" = "Basé sur %d captures fournies pour %@. Les autres captures de cette période n'ont pas été fournies.";
+"xactivity.report.sources" = "Sources fournies";
+"xactivity.report.saved" = "Rapport HTML enregistré.";
+"xactivity.report.open" = "Ouvrir le rapport HTML";
+"xactivity.report.invalid_response" = "L'IA n'a pas renvoyé de rapport utilisable. Réessayez.";
+"xactivity.report.cleanup_failed" = "La conversation a été enregistrée, mais les anciens fichiers de rapport n'ont pas pu être supprimés.";
+"xactivity.ai.cancel_unconfirmed" = "L'annulation n'a pas pu être confirmée. Cliquez sur Annuler pour réessayer.";

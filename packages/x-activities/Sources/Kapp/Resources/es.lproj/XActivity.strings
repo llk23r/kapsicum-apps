@@ -142,3 +142,14 @@
 "help.next_screenshot" = "Captura de pantalla siguiente";
 "help.open_saved_chat" = "Abrir un chat guardado";
 "help.new_fixed_scope_chat" = "Iniciar un chat con un ámbito fijo nuevo";
+
+"xactivity.output.label" = "Salida";
+"xactivity.output.answer" = "Respuesta";
+"xactivity.output.html" = "Informe HTML";
+"xactivity.report.coverage" = "Basado en %d capturas proporcionadas de %@. No se proporcionaron las demás capturas del período.";
+"xactivity.report.sources" = "Fuentes proporcionadas";
+"xactivity.report.saved" = "Informe HTML guardado.";
+"xactivity.report.open" = "Abrir informe HTML";
+"xactivity.report.invalid_response" = "La IA no devolvió un informe válido. Vuelve a intentarlo.";
+"xactivity.report.cleanup_failed" = "El chat se guardó, pero no se pudieron limpiar los archivos de informes anteriores.";
+"xactivity.ai.cancel_unconfirmed" = "La cancelación no se pudo confirmar. Pulsa Cancelar para volver a intentarlo.";

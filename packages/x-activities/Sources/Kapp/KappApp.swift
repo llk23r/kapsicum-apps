@@ -1033,6 +1033,15 @@ private struct RecapChat: View {
             if let error = store.aiError { Text(error).font(.caption).foregroundStyle(.red).padding(10).frame(maxWidth: .infinity, alignment: .leading).background(.red.opacity(0.06)) }
             Divider()
             VStack(spacing: 9) {
+                Picker(selection: $store.wantsHTMLReport) {
+                    Text(L10n.string("xactivity.output.answer", fallback: "Answer")).tag(false)
+                    Text(L10n.string("xactivity.output.html", fallback: "HTML report")).tag(true)
+                } label: {
+                    Text(L10n.string("xactivity.output.label", fallback: "Output"))
+                }
+                .pickerStyle(.menu)
+                .disabled(store.isDeletingHistory || store.isAsking)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color(nsColor: .textBackgroundColor))
